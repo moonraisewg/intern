@@ -1,0 +1,1 @@
+/Users/tai/Documents/NguyenVanTai/NguyenVanTai/Leetcode/B1/ArrayAndString/minimum_value_to_get_positive_step_by_step_sum/target/debug/minimum_value_to_get_positive_step_by_step_sum: /Users/tai/Documents/NguyenVanTai/NguyenVanTai/Leetcode/B1/ArrayAndString/minimum_value_to_get_positive_step_by_step_sum/src/main.rs
