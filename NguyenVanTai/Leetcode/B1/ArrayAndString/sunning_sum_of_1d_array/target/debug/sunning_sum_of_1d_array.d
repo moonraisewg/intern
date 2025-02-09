@@ -1,0 +1,1 @@
+/Users/tai/Documents/NguyenVanTai/NguyenVanTai/Leetcode/B1/ArrayAndString/sunning_sum_of_1d_array/target/debug/sunning_sum_of_1d_array: /Users/tai/Documents/NguyenVanTai/NguyenVanTai/Leetcode/B1/ArrayAndString/sunning_sum_of_1d_array/src/main.rs
