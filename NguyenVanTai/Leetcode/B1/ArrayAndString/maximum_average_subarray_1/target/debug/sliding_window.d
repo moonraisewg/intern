@@ -1,0 +1,1 @@
+/Users/tai/Documents/NguyenVanTai/NguyenVanTai/Leetcode/B1/ArrayAndString/maximum_average_subarray_1/target/debug/sliding_window: /Users/tai/Documents/NguyenVanTai/NguyenVanTai/Leetcode/B1/ArrayAndString/maximum_average_subarray_1/src/main.rs
