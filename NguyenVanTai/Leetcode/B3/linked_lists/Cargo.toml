@@ -1,0 +1,10 @@
+[package]
+name = "linked_lists"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+[workspace]
+
+members = [
+ "middle_linked_list"]
