@@ -9,3 +9,7 @@ version = "0.1.0"
 [[package]]
 name = "middle_linked_list"
 version = "0.1.0"
+
+[[package]]
+name = "remove_duplicates_from_sorted_list"
+version = "0.1.0"

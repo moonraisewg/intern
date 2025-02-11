@@ -7,4 +7,7 @@ edition = "2021"
 [workspace]
 
 members = [
- "middle_linked_list"]
+ "middle_linked_list", 
+ "remove_duplicates_from_sorted_list"
+
+ ]
