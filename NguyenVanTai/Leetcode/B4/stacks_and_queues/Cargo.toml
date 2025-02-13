@@ -5,7 +5,7 @@ edition = "2021"
 
 [workspace]
 members = [ 
-    "make_the_string_great",
+    "make_the_string_great", "next_greater_element_1", "online_stock_pan",
     "simplify_path"
     
 ]

@@ -1,0 +1,6 @@
+[package]
+name = "next_greater_element_1"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
