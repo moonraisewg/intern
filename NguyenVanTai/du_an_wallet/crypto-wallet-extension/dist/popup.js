@@ -3884,11 +3884,24 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
     // Xử lý hash URL để hiển thị đúng màn hình
     const hash = window.location.hash;
     if (hash.startsWith('#connect')) {
-        // Lấy origin từ URL parameters
         const params = new URLSearchParams(hash.substring(hash.indexOf('?')));
         const origin = params.get('origin');
         if (origin) {
-            // Hiển thị modal xác nhận kết nối
+            // Kiểm tra ví đã tồn tại chưa
+            const address = yield walletService.getAddress();
+            if (!address) {
+                // Hiển thị màn hình tạo ví
+                walletInfo.style.display = 'none';
+                createWallet.style.display = 'block';
+                connectModal.style.display = 'none';
+                // Thêm thông báo
+                const messageElement = document.createElement('p');
+                messageElement.className = 'warning-text';
+                messageElement.textContent = 'Vui lòng tạo ví hoặc đăng nhập trước khi kết nối!';
+                createWallet.insertBefore(messageElement, createWallet.firstChild);
+                return;
+            }
+            // Nếu có ví, hiển thị modal xác nhận kết nối
             walletInfo.style.display = 'none';
             createWallet.style.display = 'none';
             connectModal.style.display = 'block';
@@ -3897,20 +3910,37 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
             // Xử lý nút chấp nhận/từ chối
             if (approveConnectBtn && rejectConnectBtn) {
                 approveConnectBtn.addEventListener('click', () => __awaiter(void 0, void 0, void 0, function* () {
-                    const address = yield walletService.getAddress();
-                    chrome.runtime.sendMessage({
-                        type: 'CONNECTION_RESPONSE',
-                        approved: true,
-                        publicKey: address
-                    });
-                    window.close();
+                    try {
+                        const address = yield walletService.getAddress();
+                        console.log('Got address from wallet:', address); // Debug log
+                        if (!address) {
+                            console.error('No address found');
+                            return;
+                        }
+                        // Gửi message đến background
+                        chrome.runtime.sendMessage({
+                            type: 'CONNECTION_RESPONSE',
+                            approved: true,
+                            publicKey: address
+                        }, (response) => {
+                            if (chrome.runtime.lastError) {
+                                console.error('Error sending approval:', chrome.runtime.lastError);
+                            }
+                            else {
+                                console.log('Approval sent successfully with address:', address);
+                            }
+                            window.close();
+                        });
+                    }
+                    catch (error) {
+                        console.error('Error getting address:', error);
+                    }
                 }));
                 rejectConnectBtn.addEventListener('click', () => {
                     chrome.runtime.sendMessage({
                         type: 'CONNECTION_RESPONSE',
                         approved: false
-                    });
-                    window.close();
+                    }, () => window.close());
                 });
             }
         }
@@ -4470,8 +4500,15 @@ class WalletService {
     }
     getAddress() {
         return __awaiter(this, void 0, void 0, function* () {
-            const data = yield chrome.storage.local.get(['publicKey']);
-            return data.publicKey || null;
+            try {
+                const data = yield chrome.storage.local.get(['publicKey']);
+                console.log('Retrieved address from storage:', data.publicKey); // Debug log
+                return data.publicKey || null;
+            }
+            catch (error) {
+                console.error('Error getting address:', error);
+                return null;
+            }
         });
     }
     signTransaction(transaction) {

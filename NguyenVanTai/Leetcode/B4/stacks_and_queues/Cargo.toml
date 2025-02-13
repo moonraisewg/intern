@@ -1,0 +1,11 @@
+[package]
+name = "stacks_and_queues"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+members = [ 
+    "make_the_string_great",
+    "simplify_path"
+    
+]

@@ -1,0 +1,6 @@
+[package]
+name = "make_the_string_great"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]

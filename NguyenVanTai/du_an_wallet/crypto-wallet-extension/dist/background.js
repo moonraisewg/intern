@@ -3813,79 +3813,102 @@ const walletService = new wallet_1.WalletService();
 const connectionService = new connection_1.ConnectionService();
 // Lắng nghe message
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    (() => __awaiter(void 0, void 0, void 0, function* () {
-        var _a;
-        try {
-            let response = {};
-            switch (message.type) {
-                case 'CREATE_WALLET':
-                    const walletData = yield walletService.createWallet();
-                    response = {
-                        address: walletData.address,
-                        seedPhrase: walletData.seedPhrase
-                    };
-                    break;
-                case 'CONNECT_REQUEST':
-                    response = yield connectionService.handleConnectionRequest(message.origin);
-                    if (response.approved) {
-                        yield connectionService.addConnectedSite(message.origin);
-                    }
-                    // Gửi response ngay lập tức
-                    sendResponse(response);
-                    break;
-                case 'CONNECTION_RESPONSE':
-                    // Broadcast response đến tất cả tabs
-                    chrome.tabs.query({}, (tabs) => {
-                        tabs.forEach(tab => {
-                            if (tab.id) {
-                                chrome.tabs.sendMessage(tab.id, {
-                                    type: 'CONNECTION_RESPONSE',
-                                    approved: message.approved,
-                                    publicKey: response === null || response === void 0 ? void 0 : response.publicKey
-                                });
-                            }
-                        });
-                    });
-                    break;
-                case 'SIGN_TRANSACTION':
-                    if (yield connectionService.isConnected(message.origin)) {
-                        const signedTx = yield walletService.signTransaction(message.transaction);
-                        response = { approved: true, signedTx };
-                    }
-                    else {
-                        response = { approved: false, error: 'Not connected' };
-                    }
-                    break;
-                case 'SIGN_MESSAGE':
-                    if (yield connectionService.isConnected(message.origin)) {
-                        const signature = yield walletService.signMessage(message.message);
-                        response = { approved: true, signature };
-                    }
-                    else {
-                        response = { approved: false, error: 'Not connected' };
-                    }
-                    break;
-                default:
-                    response = { error: 'Unknown request type' };
+    console.log('Background received message:', message);
+    if (message.type === 'CONNECT_REQUEST') {
+        // Xử lý đồng bộ
+        handleConnectRequest(message, sender)
+            .then(response => {
+            try {
+                sendResponse(response);
             }
-            // Gửi response với ID
+            catch (error) {
+                console.error('Error sending response:', error);
+            }
+        })
+            .catch(error => {
+            console.error('Error handling connect request:', error);
+            sendResponse({
+                approved: false,
+                error: error.message || 'Connection failed'
+            });
+        });
+        return true; // Giữ kênh message mở
+    }
+    if (message.type === 'CONNECTION_RESPONSE') {
+        // Xử lý đồng bộ
+        try {
+            const tabs = chrome.tabs.query({});
+            tabs.then(foundTabs => {
+                foundTabs.forEach(tab => {
+                    if (tab.id) {
+                        chrome.tabs.sendMessage(tab.id, message);
+                    }
+                });
+            });
+        }
+        catch (error) {
+            console.error('Error broadcasting response:', error);
+        }
+    }
+    return false;
+});
+// Hàm xử lý yêu cầu kết nối
+function handleConnectRequest(message, sender) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            // Kiểm tra ví đã tồn tại chưa
+            const address = yield walletService.getAddress();
+            if (!address) {
+                return {
+                    approved: false,
+                    error: 'Wallet not found. Please create or import a wallet first.'
+                };
+            }
+            const response = yield connectionService.handleConnectionRequest(message.origin);
+            if (response.approved) {
+                yield connectionService.addConnectedSite(message.origin);
+                response.publicKey = address;
+            }
+            console.log('Sending connect response:', response);
+            return response;
+        }
+        catch (error) {
+            console.error('Connect request error:', error);
+            return {
+                approved: false,
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    });
+}
+// Hàm xử lý response kết nối
+function handleConnectionResponse(message, sender) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b;
+        try {
             if ((_a = sender.tab) === null || _a === void 0 ? void 0 : _a.id) {
+                const address = yield walletService.getAddress();
                 chrome.tabs.sendMessage(sender.tab.id, {
-                    id: message.id,
-                    data: response
+                    type: 'CONNECTION_RESPONSE',
+                    approved: message.approved,
+                    publicKey: address,
+                    error: null
                 });
             }
         }
         catch (error) {
-            console.error('Error in background:', error);
-            sendResponse({
-                approved: false,
-                error: error instanceof Error ? error.message : 'Unknown error'
-            });
+            console.error('Connection response error:', error);
+            if ((_b = sender.tab) === null || _b === void 0 ? void 0 : _b.id) {
+                chrome.tabs.sendMessage(sender.tab.id, {
+                    type: 'CONNECTION_RESPONSE',
+                    approved: false,
+                    publicKey: null,
+                    error: error instanceof Error ? error.message : String(error)
+                });
+            }
         }
-    }))();
-    return true;
-});
+    });
+}
 // Thông báo service worker đã sẵn sàng
 console.log('Service Worker Initialized');
 
@@ -4103,8 +4126,15 @@ class WalletService {
     }
     getAddress() {
         return __awaiter(this, void 0, void 0, function* () {
-            const data = yield chrome.storage.local.get(['publicKey']);
-            return data.publicKey || null;
+            try {
+                const data = yield chrome.storage.local.get(['publicKey']);
+                console.log('Retrieved address from storage:', data.publicKey); // Debug log
+                return data.publicKey || null;
+            }
+            catch (error) {
+                console.error('Error getting address:', error);
+                return null;
+            }
         });
     }
     signTransaction(transaction) {

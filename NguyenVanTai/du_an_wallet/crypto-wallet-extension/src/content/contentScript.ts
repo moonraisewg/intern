@@ -5,6 +5,26 @@ interface WalletError extends Error {
   message: string;
 }
 
+// Thêm interface cho response
+interface WalletResponse {
+  type?: string;
+  approved?: boolean;
+  publicKey?: string;
+  error?: string;
+  signedTx?: any;
+  signature?: Uint8Array;
+  data?: any;
+}
+
+// Định nghĩa interface cho message
+interface WalletMessage {
+  type: string;
+  origin?: string;
+  transaction?: any;
+  message?: any;
+  id?: string;
+}
+
 // Tạo một ID duy nhất cho mỗi request
 let requestId = 0;
 function getNextRequestId() {
@@ -44,90 +64,129 @@ async function sendMessageToBackground(message: any): Promise<any> {
   });
 }
 
-// Inject provider script
-const script = document.createElement('script');
-script.src = chrome.runtime.getURL('provider.js');
-(document.head || document.documentElement).appendChild(script);
-
-// Lắng nghe message từ background
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === 'CONNECTION_RESPONSE') {
-    window.postMessage({
-      type: 'SOL_CONNECT_RESPONSE',
-      approved: message.approved,
-      publicKey: message.publicKey
-    }, '*');
-  }
-});
-
 // Lắng nghe message từ trang web
-window.addEventListener('message', async (event) => {
+window.addEventListener('message', (event) => {
   if (event.source !== window) return;
 
   switch (event.data.type) {
     case 'SOL_CONNECT_REQUEST':
-      try {
-        const response = await sendMessageToBackground({
-          type: 'CONNECT_REQUEST',
-          origin: window.location.origin
-        });
-        
-        // Response sẽ được xử lý bởi listener ở trên
-      } catch (error: unknown) {
+      console.log('Received SOL_CONNECT_REQUEST from provider');
+      // Sử dụng Promise.race để thêm timeout
+      Promise.race<WalletResponse>([
+        new Promise<WalletResponse>((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 30000)
+        ),
+        new Promise<WalletResponse>((resolve, reject) => {
+          try {
+            chrome.runtime.sendMessage({
+              type: 'CONNECT_REQUEST',
+              origin: window.location.origin
+            } as WalletMessage, (response: WalletResponse) => {
+              if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+                return;
+              }
+              resolve(response || {
+                type: 'SOL_CONNECT_RESPONSE',
+                approved: false,
+                error: 'Invalid response'
+              });
+            });
+          } catch (error) {
+            reject(error);
+          }
+        })
+      ]).then((response: WalletResponse) => {
+        console.log('Got response from background:', response);
+        window.postMessage({
+          type: 'SOL_CONNECT_RESPONSE',
+          approved: response?.approved || false,
+          publicKey: response?.publicKey,
+          error: response?.error
+        } as WalletResponse, '*');
+      }).catch(error => {
         console.error('Connection error:', error);
         window.postMessage({
           type: 'SOL_CONNECT_RESPONSE',
           approved: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }, '*');
-      }
+          error: error.message || 'Connection failed'
+        } as WalletResponse, '*');
+      });
       break;
 
     case 'SOL_SIGN_TRANSACTION_REQUEST':
-      try {
-        const response = await sendMessageToBackground({
-          type: 'SIGN_TRANSACTION',
-          transaction: event.data.transaction,
-          origin: window.location.origin
-        });
+      // Sử dụng Promise cho sign transaction
+      sendMessageToBackground({
+        type: 'SIGN_TRANSACTION',
+        transaction: event.data.transaction,
+        origin: window.location.origin
+      }).then(response => {
         window.postMessage({
           type: 'SOL_SIGN_TRANSACTION_RESPONSE',
           approved: response.approved,
           signedTx: response.signedTx
         }, '*');
-      } catch (error: unknown) {
+      }).catch(error => {
         console.error('Sign transaction error:', error);
         window.postMessage({
           type: 'SOL_SIGN_TRANSACTION_RESPONSE',
           approved: false,
           error: error instanceof Error ? error.message : 'Unknown error'
         }, '*');
-      }
+      });
       break;
 
     case 'SOL_SIGN_MESSAGE_REQUEST':
-      try {
-        const response = await sendMessageToBackground({
-          type: 'SIGN_MESSAGE',
-          message: event.data.message,
-          origin: window.location.origin
-        });
+      // Sử dụng Promise cho sign message
+      sendMessageToBackground({
+        type: 'SIGN_MESSAGE',
+        message: event.data.message,
+        origin: window.location.origin
+      }).then(response => {
         window.postMessage({
           type: 'SOL_SIGN_MESSAGE_RESPONSE',
           approved: response.approved,
           signature: response.signature
         }, '*');
-      } catch (error: unknown) {
+      }).catch(error => {
         console.error('Sign message error:', error);
         window.postMessage({
           type: 'SOL_SIGN_MESSAGE_RESPONSE',
           approved: false,
           error: error instanceof Error ? error.message : 'Unknown error'
         }, '*');
-      }
+      });
       break;
   }
 });
+
+// Lắng nghe message từ background
+chrome.runtime.onMessage.addListener((message: WalletResponse, sender, sendResponse) => {
+  try {
+    console.log('Content script received message:', message);
+    
+    if (message.type === 'CONNECTION_RESPONSE') {
+      console.log('Forwarding CONNECTION_RESPONSE to provider:', message);
+      if (!message.publicKey) {
+        console.error('No publicKey in CONNECTION_RESPONSE');
+      }
+      window.postMessage({
+        type: 'SOL_CONNECT_RESPONSE',
+        approved: message.approved,
+        publicKey: message.publicKey,
+        error: message.error || (!message.publicKey && message.approved ? 'No public key received' : undefined)
+      } as WalletResponse, '*');
+    }
+    sendResponse(); // Gửi response ngay lập tức
+  } catch (error) {
+    console.error('Error handling message:', error);
+  }
+});
+
+// Inject provider script
+const script = document.createElement('script');
+script.src = chrome.runtime.getURL('provider.js');
+(document.head || document.documentElement).appendChild(script);
 
 // Thông báo provider đã sẵn sàng
 script.onload = () => {

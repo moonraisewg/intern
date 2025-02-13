@@ -9,24 +9,33 @@
         return new Promise((resolve, reject) => {
           const timeoutId = setTimeout(() => {
             reject(new Error('Connection request timeout'));
-          }, 60000); // Tăng timeout lên 60 giây
+          }, 30000);
 
           const handleResponse = (event) => {
             if (event.data.type === 'SOL_CONNECT_RESPONSE') {
               clearTimeout(timeoutId);
+              console.log('Provider received response:', event.data);
               window.removeEventListener('message', handleResponse);
               
               if (event.data.approved && event.data.publicKey) {
                 this.publicKey = event.data.publicKey;
                 resolve({ publicKey: event.data.publicKey });
               } else {
-                reject(new Error(event.data.error || 'User rejected connection'));
+                const error = event.data.error || 
+                  (!event.data.publicKey ? 'Please create or import a wallet first' : 'User rejected connection');
+                reject(new Error(error));
               }
             }
           };
 
-          window.addEventListener('message', handleResponse);
-          window.postMessage({ type: 'SOL_CONNECT_REQUEST' }, '*');
+          try {
+            window.addEventListener('message', handleResponse);
+            console.log('Provider sending connect request');
+            window.postMessage({ type: 'SOL_CONNECT_REQUEST' }, '*');
+          } catch (error) {
+            clearTimeout(timeoutId);
+            reject(error);
+          }
         });
       } catch (error) {
         console.error('Connect error:', error);

@@ -53,88 +53,124 @@ function sendMessageToBackground(message) {
         });
     });
 }
-// Inject provider script
-const script = document.createElement('script');
-script.src = chrome.runtime.getURL('provider.js');
-(document.head || document.documentElement).appendChild(script);
-// Lắng nghe message từ background
-chrome.runtime.onMessage.addListener((message) => {
-    if (message.type === 'CONNECTION_RESPONSE') {
-        window.postMessage({
-            type: 'SOL_CONNECT_RESPONSE',
-            approved: message.approved,
-            publicKey: message.publicKey
-        }, '*');
-    }
-});
 // Lắng nghe message từ trang web
-window.addEventListener('message', (event) => __awaiter(void 0, void 0, void 0, function* () {
+window.addEventListener('message', (event) => {
     if (event.source !== window)
         return;
     switch (event.data.type) {
         case 'SOL_CONNECT_REQUEST':
-            try {
-                const response = yield sendMessageToBackground({
-                    type: 'CONNECT_REQUEST',
-                    origin: window.location.origin
-                });
-                // Response sẽ được xử lý bởi listener ở trên
-            }
-            catch (error) {
+            console.log('Received SOL_CONNECT_REQUEST from provider');
+            // Sử dụng Promise.race để thêm timeout
+            Promise.race([
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), 30000)),
+                new Promise((resolve, reject) => {
+                    try {
+                        chrome.runtime.sendMessage({
+                            type: 'CONNECT_REQUEST',
+                            origin: window.location.origin
+                        }, (response) => {
+                            if (chrome.runtime.lastError) {
+                                reject(chrome.runtime.lastError);
+                                return;
+                            }
+                            resolve(response || {
+                                type: 'SOL_CONNECT_RESPONSE',
+                                approved: false,
+                                error: 'Invalid response'
+                            });
+                        });
+                    }
+                    catch (error) {
+                        reject(error);
+                    }
+                })
+            ]).then((response) => {
+                console.log('Got response from background:', response);
+                window.postMessage({
+                    type: 'SOL_CONNECT_RESPONSE',
+                    approved: (response === null || response === void 0 ? void 0 : response.approved) || false,
+                    publicKey: response === null || response === void 0 ? void 0 : response.publicKey,
+                    error: response === null || response === void 0 ? void 0 : response.error
+                }, '*');
+            }).catch(error => {
                 console.error('Connection error:', error);
                 window.postMessage({
                     type: 'SOL_CONNECT_RESPONSE',
                     approved: false,
-                    error: error instanceof Error ? error.message : 'Unknown error'
+                    error: error.message || 'Connection failed'
                 }, '*');
-            }
+            });
             break;
         case 'SOL_SIGN_TRANSACTION_REQUEST':
-            try {
-                const response = yield sendMessageToBackground({
-                    type: 'SIGN_TRANSACTION',
-                    transaction: event.data.transaction,
-                    origin: window.location.origin
-                });
+            // Sử dụng Promise cho sign transaction
+            sendMessageToBackground({
+                type: 'SIGN_TRANSACTION',
+                transaction: event.data.transaction,
+                origin: window.location.origin
+            }).then(response => {
                 window.postMessage({
                     type: 'SOL_SIGN_TRANSACTION_RESPONSE',
                     approved: response.approved,
                     signedTx: response.signedTx
                 }, '*');
-            }
-            catch (error) {
+            }).catch(error => {
                 console.error('Sign transaction error:', error);
                 window.postMessage({
                     type: 'SOL_SIGN_TRANSACTION_RESPONSE',
                     approved: false,
                     error: error instanceof Error ? error.message : 'Unknown error'
                 }, '*');
-            }
+            });
             break;
         case 'SOL_SIGN_MESSAGE_REQUEST':
-            try {
-                const response = yield sendMessageToBackground({
-                    type: 'SIGN_MESSAGE',
-                    message: event.data.message,
-                    origin: window.location.origin
-                });
+            // Sử dụng Promise cho sign message
+            sendMessageToBackground({
+                type: 'SIGN_MESSAGE',
+                message: event.data.message,
+                origin: window.location.origin
+            }).then(response => {
                 window.postMessage({
                     type: 'SOL_SIGN_MESSAGE_RESPONSE',
                     approved: response.approved,
                     signature: response.signature
                 }, '*');
-            }
-            catch (error) {
+            }).catch(error => {
                 console.error('Sign message error:', error);
                 window.postMessage({
                     type: 'SOL_SIGN_MESSAGE_RESPONSE',
                     approved: false,
                     error: error instanceof Error ? error.message : 'Unknown error'
                 }, '*');
-            }
+            });
             break;
     }
-}));
+});
+// Lắng nghe message từ background
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    try {
+        console.log('Content script received message:', message);
+        if (message.type === 'CONNECTION_RESPONSE') {
+            console.log('Forwarding CONNECTION_RESPONSE to provider:', message);
+            if (!message.publicKey) {
+                console.error('No publicKey in CONNECTION_RESPONSE');
+            }
+            window.postMessage({
+                type: 'SOL_CONNECT_RESPONSE',
+                approved: message.approved,
+                publicKey: message.publicKey,
+                error: message.error || (!message.publicKey && message.approved ? 'No public key received' : undefined)
+            }, '*');
+        }
+        sendResponse(); // Gửi response ngay lập tức
+    }
+    catch (error) {
+        console.error('Error handling message:', error);
+    }
+});
+// Inject provider script
+const script = document.createElement('script');
+script.src = chrome.runtime.getURL('provider.js');
+(document.head || document.documentElement).appendChild(script);
 // Thông báo provider đã sẵn sàng
 script.onload = () => {
     script.remove();

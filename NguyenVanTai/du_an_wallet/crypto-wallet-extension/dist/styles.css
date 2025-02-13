@@ -112,8 +112,8 @@ input {
 
 .intro-text {
   text-align: center;
-  color: #666;
-  margin: 20px 0;
+  margin-bottom: 20px;
+  color: #1a237e;
 }
 
 #qr-code {
@@ -127,14 +127,13 @@ input {
 }
 
 .warning-text {
-  background-color: #fff3cd;
-  border: 1px solid #ffeeba;
-  color: #856404;
+  color: #e53935;
+  background-color: #ffebee;
   padding: 12px;
   border-radius: 8px;
-  margin: 16px;
-  font-size: 13px;
+  margin-bottom: 16px;
   text-align: center;
+  font-weight: 500;
 }
 
 .warning-text p {
@@ -427,4 +426,11 @@ input {
   font-weight: 500;
   font-size: 14px;
   word-break: break-all;
+}
+
+#create-wallet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
 }
