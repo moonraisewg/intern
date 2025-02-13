@@ -1,2 +1,4 @@
 node_modules/
 *.pem
+node_modules/
+*.pem
