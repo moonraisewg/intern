@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Solana Wallet Connection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #1a237e;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .success {
+            color: green;
+            background: #e8f5e9;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error {
+            color: red;
+            background: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        #wallet-info {
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Solana Wallet Connection</h1>
+
+    <div class="card">
+        <h2>Trạng thái ví</h2>
+        <div id="wallet-info">Chưa kết nối</div>
+        <button id="connect-btn">Kết nối ví</button>
+        <button id="disconnect-btn" disabled>Ngắt kết nối</button>
+    </div>
+
+    <div class="card">
+        <h2>Test Giao dịch</h2>
+        <div>
+            <button id="sign-msg-btn" disabled>Ký tin nhắn test</button>
+            <button id="sign-tx-btn" disabled>Ký giao dịch test</button>
+        </div>
+        <div id="tx-result"></div>
+    </div>
+
+    <script>
+        const connectBtn = document.getElementById('connect-btn');
+        const disconnectBtn = document.getElementById('disconnect-btn');
+        const signMsgBtn = document.getElementById('sign-msg-btn');
+        const signTxBtn = document.getElementById('sign-tx-btn');
+        const walletInfo = document.getElementById('wallet-info');
+        const txResult = document.getElementById('tx-result');
+
+        let checkWalletInterval;
+        let checkWalletTimeout;
+
+        function waitForWallet() {
+            if (window.solana) {
+                clearInterval(checkWalletInterval);
+                clearTimeout(checkWalletTimeout);
+                checkWallet();
+            }
+        }
+
+        // Kiểm tra mỗi 100ms
+        checkWalletInterval = setInterval(waitForWallet, 100);
+
+        // Timeout sau 10 giây
+        checkWalletTimeout = setTimeout(() => {
+            if (checkWalletInterval) {
+                clearInterval(checkWalletInterval);
+                showResult('Không thể tìm thấy ví sau 10 giây', true);
+            }
+        }, 10000);
+
+        // Thêm event listener cho solana#initialized
+        window.addEventListener('solana#initialized', () => {
+            if (window.solana) {
+                clearInterval(checkWalletInterval);
+                clearTimeout(checkWalletTimeout);
+                checkWallet();
+            }
+        });
+
+        function showResult(message, isError = false) {
+            const div = document.createElement('div');
+            div.textContent = message;
+            div.className = isError ? 'error' : 'success';
+            txResult.prepend(div);
+        }
+
+        function updateButtons(connected) {
+            connectBtn.disabled = connected;
+            disconnectBtn.disabled = !connected;
+            signMsgBtn.disabled = !connected;
+            signTxBtn.disabled = !connected;
+        }
+
+        async function checkWallet() {
+            if (window.solana) {
+                if (window.solana.publicKey) {
+                    walletInfo.textContent = `Đã kết nối: ${window.solana.publicKey.toString()}`;
+                    updateButtons(true);
+                } else {
+                    walletInfo.textContent = 'Đã tìm thấy ví nhưng chưa kết nối';
+                    updateButtons(false);
+                }
+            } else {
+                walletInfo.textContent = 'Không tìm thấy ví Solana';
+                updateButtons(false);
+            }
+        }
+
+        connectBtn.addEventListener('click', async () => {
+            try {
+                const resp = await window.solana.connect();
+                if (resp && resp.publicKey) {
+                    walletInfo.textContent = `Đã kết nối: ${resp.publicKey}`;
+                    updateButtons(true);
+                    showResult('Kết nối thành công!');
+                }
+            } catch (err) {
+                showResult(`Lỗi kết nối: ${err.message}`, true);
+            }
+        });
+
+        disconnectBtn.addEventListener('click', async () => {
+            try {
+                await window.solana.disconnect();
+                walletInfo.textContent = 'Đã ngắt kết nối';
+                updateButtons(false);
+                showResult('Đã ngắt kết nối');
+            } catch (err) {
+                showResult(`Lỗi ngắt kết nối: ${err.message}`, true);
+            }
+        });
+
+        signMsgBtn.addEventListener('click', async () => {
+            try {
+                const message = new TextEncoder().encode('Test Message Signing');
+                const signedMessage = await window.solana.signMessage(message);
+                showResult(`Đã ký tin nhắn thành công! Signature: ${Buffer.from(signedMessage.signature).toString('hex')}`);
+            } catch (err) {
+                showResult(`Lỗi ký tin nhắn: ${err.message}`, true);
+            }
+        });
+
+        signTxBtn.addEventListener('click', async () => {
+            try {
+                // Tạo một transaction test đơn giản
+                const transaction = {
+                    from: window.solana.publicKey.toString(),
+                    to: 'receiver_address',
+                    amount: 0.1,
+                    fee: 0.000005
+                };
+                
+                const signedTx = await window.solana.signTransaction(transaction);
+                showResult('Đã ký giao dịch thành công!');
+            } catch (err) {
+                showResult(`Lỗi ký giao dịch: ${err.message}`, true);
+            }
+        });
+    </script>
+</body>
+</html> 

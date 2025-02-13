@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Solana Wallet</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Solana Wallet</h1>
+    
+    <!-- Màn hình thông tin ví -->
+    <div id="wallet-info" style="display: none;">
+      <div class="wallet-header">
+        <h1>Solana Wallet</h1>
+        <button id="settings-btn" class="icon-button">⚙️</button>
+      </div>
+      <div class="balance-section">
+        <h2>Số dư:</h2>
+        <p id="wallet-balance">0 SOL</p>
+      </div>
+
+      <div class="address-section">
+        <h2>Địa chỉ ví:</h2>
+        <div class="address-container">
+          <p id="wallet-address"></p>
+          <button id="copy-address" class="icon-button">📋</button>
+        </div>
+      </div>
+
+      <div class="action-buttons">
+        <button id="send-btn" class="primary-button">Gửi SOL</button>
+        <button id="receive-btn" class="primary-button">Nhận SOL</button>
+      </div>
+
+      <div class="transaction-history">
+        <h2>Lịch sử giao dịch</h2>
+        <div id="transactions-list">
+          <!-- Transactions will be inserted here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Màn hình tạo ví -->
+    <div id="create-wallet" style="display: block;">
+      <p class="intro-text">Chào mừng đến với Solana Wallet!</p>
+      <button id="create-wallet-btn" class="primary-button">Tạo ví Solana mới</button>
+    </div>
+
+    <!-- Form gửi SOL (ẩn mặc định) -->
+    <div id="send-form" class="modal" style="display: none;">
+      <div class="modal-content">
+        <h2>Gửi SOL</h2>
+        <input type="text" id="recipient-address" placeholder="Địa chỉ người nhận">
+        <input type="number" id="send-amount" placeholder="Số lượng SOL">
+        <div class="modal-buttons">
+          <button id="confirm-send" class="primary-button">Gửi</button>
+          <button id="cancel-send" class="secondary-button">Hủy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- QR Code nhận SOL (ẩn mặc định) -->
+    <div id="receive-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <h2>Nhận SOL</h2>
+        <div id="qr-code"></div>
+        <p class="address-text">Địa chỉ ví của bạn:</p>
+        <p id="receive-address"></p>
+        <button id="close-receive" class="secondary-button">Đóng</button>
+      </div>
+    </div>
+
+    <div id="connected-sites">
+      <h2>Các trang đã kết nối:</h2>
+      <ul id="sites-list"></ul>
+    </div>
+
+    <!-- Tách thành 2 modal riêng biệt -->
+    <div id="seed-phrase-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="header">
+          <h2>Từ khóa khôi phục bí mật</h2>
+        </div>
+
+        <div class="scrollable-content">
+          <div class="warning-text">
+            <p>⚠️ CẢNH BÁO QUAN TRỌNG</p>
+            <p>Không bao giờ chia sẻ cụm từ bí mật với bất kỳ ai. Cụm từ này có thể được dùng để đánh cắp ví của bạn.</p>
+          </div>
+
+          <div class="seed-phrase-grid">
+            <!-- Sẽ được điền bởi JavaScript -->
+          </div>
+
+          <div class="copy-section">
+            <button id="copy-seed" class="copy-button">
+              <span>📋</span>
+              <span>Sao chép từ khóa bí mật</span>
+            </button>
+          </div>
+
+          <div class="copy-all-section">
+            <button id="copy-all-seed" class="secondary-button">
+              Sao chép tất cả để dán vào bước xác nhận
+            </button>
+          </div>
+        </div>
+
+        <div class="step-buttons">
+          <button id="back-to-create" class="secondary-button">Quay lại</button>
+          <button id="continue-seed" class="primary-button">Tiếp tục</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal xác nhận riêng biệt -->
+    <div id="confirm-seed-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="header">
+          <h2>Xác nhận từ khóa bí mật</h2>
+        </div>
+
+        <div class="scrollable-content">
+          <p>Vui lòng nhập lại từ khóa bí mật theo đúng thứ tự:</p>
+          <div class="seed-phrase-grid" id="confirm-seed-grid">
+            <!-- Sẽ được điền bởi JavaScript -->
+          </div>
+          <div class="paste-section">
+            <button id="paste-all-seed" class="secondary-button">
+              Dán tất cả từ khóa đã sao chép
+            </button>
+          </div>
+        </div>
+
+        <div class="step-buttons">
+          <button id="back-to-seed" class="secondary-button">Quay lại</button>
+          <button id="confirm-seed" class="primary-button">Xác nhận</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Thêm modal cài đặt -->
+    <div id="settings-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="header">
+          <button id="close-settings" class="icon-button back-button">←</button>
+          <h2>Cài đặt</h2>
+        </div>
+
+        <div class="scrollable-content">
+          <div class="settings-list">
+            <div class="settings-item">
+              <div class="settings-item-content">
+                <span class="settings-icon">🔒</span>
+                <span class="settings-text">Xem cụm từ khôi phục</span>
+              </div>
+              <button id="view-seed-phrase" class="secondary-button">Xem</button>
+            </div>
+
+            <div class="settings-item">
+              <div class="settings-item-content">
+                <span class="settings-icon">🌐</span>
+                <span class="settings-text">Mạng</span>
+              </div>
+              <select id="network-select" class="network-select">
+                <option value="mainnet">Mainnet</option>
+                <option value="devnet">Devnet</option>
+                <option value="testnet">Testnet</option>
+              </select>
+            </div>
+
+            <div class="settings-item danger">
+              <div class="settings-item-content">
+                <span class="settings-icon">🚪</span>
+                <span class="settings-text">Đăng xuất</span>
+              </div>
+              <button id="logout-btn" class="danger-button">Đăng xuất</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal xác nhận đăng xuất -->
+    <div id="logout-confirm-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="header">
+          <h2>Xác nhận đăng xuất</h2>
+        </div>
+
+        <div class="scrollable-content">
+          <div class="warning-text">
+            <p>⚠️ CẢNH BÁO</p>
+            <p>Đảm bảo bạn đã lưu cụm từ khôi phục trước khi đăng xuất. Nếu không, bạn sẽ mất quyền truy cập vào ví của mình.</p>
+          </div>
+        </div>
+
+        <div class="step-buttons">
+          <button id="cancel-logout" class="secondary-button">Hủy</button>
+          <button id="confirm-logout" class="danger-button">Xác nhận đăng xuất</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal xác nhận kết nối -->
+    <div id="connect-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <h2>Yêu cầu kết nối</h2>
+        <div class="connect-info">
+          <p>Trang web muốn kết nối với ví của bạn:</p>
+          <h3 id="site-origin"></h3>
+          <p>Quyền được yêu cầu:</p>
+          <ul>
+            <li>Xem địa chỉ ví</li>
+            <li>Yêu cầu ký giao dịch</li>
+          </ul>
+        </div>
+        <div class="button-group">
+          <button id="reject-connect" class="secondary-button">Từ chối</button>
+          <button id="approve-connect" class="primary-button">Chấp nhận</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal xác nhận giao dịch -->
+    <div id="sign-transaction-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="header">
+          <h2>Xác nhận giao dịch</h2>
+        </div>
+
+        <div class="scrollable-content">
+          <div class="transaction-info">
+            <div class="site-info">
+              <img id="tx-site-icon" class="site-icon" src="" alt="Site icon">
+              <span id="tx-site-origin"></span>
+            </div>
+
+            <div class="tx-details">
+              <div class="tx-row">
+                <span class="tx-label">Từ:</span>
+                <span id="tx-from" class="tx-value"></span>
+              </div>
+              <div class="tx-row">
+                <span class="tx-label">Đến:</span>
+                <span id="tx-to" class="tx-value"></span>
+              </div>
+              <div class="tx-row">
+                <span class="tx-label">Số lượng:</span>
+                <span id="tx-amount" class="tx-value"></span>
+              </div>
+              <div class="tx-row">
+                <span class="tx-label">Phí giao dịch:</span>
+                <span id="tx-fee" class="tx-value"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-buttons">
+          <button id="reject-transaction" class="secondary-button">Từ chối</button>
+          <button id="approve-transaction" class="primary-button">Ký và Gửi</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

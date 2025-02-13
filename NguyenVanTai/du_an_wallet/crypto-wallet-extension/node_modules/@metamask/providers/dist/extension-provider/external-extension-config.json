@@ -1,0 +1,15 @@
+{
+    "chromeIds": {
+        "stable": "nkbihfbeogaeaoehlefnkodbefgpgknn",
+        "beta": "pbbkamfgmaedccnfkmjcofcecjhfgldn",
+        "flask": "ljfoeinjpaedjfecbmggjgodbgkmjkjk"
+    },
+    "edgeChromiumIds": {
+        "stable": "ejbalbakoplchlghecdalmeeeajnimhm"
+    },
+    "firefoxIds": {
+        "stable": "webextension@metamask.io",
+        "beta": "webextension-beta@metamask.io",
+        "flask": "webextension-flask@metamask.io"
+    }
+}

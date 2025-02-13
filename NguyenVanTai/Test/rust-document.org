@@ -1,4 +1,0 @@
-Rust Document
-
-variable 
- -  mặc định các biến trong rust là bất biến 

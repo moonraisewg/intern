@@ -1,0 +1,24 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.caip294RequestWallet = exports.caip294AnnounceWallet = exports.eip6963RequestProvider = exports.eip6963AnnounceProvider = exports.StreamProvider = exports.shimWeb3 = exports.setGlobalProvider = exports.MetaMaskInpageProvider = exports.MetaMaskInpageProviderStreamName = exports.initializeProvider = exports.createExternalExtensionProvider = exports.BaseProvider = void 0;
+const BaseProvider_1 = require("./BaseProvider.cjs");
+Object.defineProperty(exports, "BaseProvider", { enumerable: true, get: function () { return BaseProvider_1.BaseProvider; } });
+const CAIP294_1 = require("./CAIP294.cjs");
+Object.defineProperty(exports, "caip294AnnounceWallet", { enumerable: true, get: function () { return CAIP294_1.announceWallet; } });
+Object.defineProperty(exports, "caip294RequestWallet", { enumerable: true, get: function () { return CAIP294_1.requestWallet; } });
+const EIP6963_1 = require("./EIP6963.cjs");
+Object.defineProperty(exports, "eip6963AnnounceProvider", { enumerable: true, get: function () { return EIP6963_1.announceProvider; } });
+Object.defineProperty(exports, "eip6963RequestProvider", { enumerable: true, get: function () { return EIP6963_1.requestProvider; } });
+const createExternalExtensionProvider_1 = require("./extension-provider/createExternalExtensionProvider.cjs");
+Object.defineProperty(exports, "createExternalExtensionProvider", { enumerable: true, get: function () { return createExternalExtensionProvider_1.createExternalExtensionProvider; } });
+const initializeInpageProvider_1 = require("./initializeInpageProvider.cjs");
+Object.defineProperty(exports, "initializeProvider", { enumerable: true, get: function () { return initializeInpageProvider_1.initializeProvider; } });
+Object.defineProperty(exports, "setGlobalProvider", { enumerable: true, get: function () { return initializeInpageProvider_1.setGlobalProvider; } });
+const MetaMaskInpageProvider_1 = require("./MetaMaskInpageProvider.cjs");
+Object.defineProperty(exports, "MetaMaskInpageProvider", { enumerable: true, get: function () { return MetaMaskInpageProvider_1.MetaMaskInpageProvider; } });
+Object.defineProperty(exports, "MetaMaskInpageProviderStreamName", { enumerable: true, get: function () { return MetaMaskInpageProvider_1.MetaMaskInpageProviderStreamName; } });
+const shimWeb3_1 = require("./shimWeb3.cjs");
+Object.defineProperty(exports, "shimWeb3", { enumerable: true, get: function () { return shimWeb3_1.shimWeb3; } });
+const StreamProvider_1 = require("./StreamProvider.cjs");
+Object.defineProperty(exports, "StreamProvider", { enumerable: true, get: function () { return StreamProvider_1.StreamProvider; } });
+//# sourceMappingURL=index.cjs.map
