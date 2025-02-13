@@ -1,5 +1,6 @@
 const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
+const webpack = require('webpack');
 
 module.exports = {
   mode: 'production',
@@ -25,11 +26,10 @@ module.exports = {
     ]
   },
   resolve: {
-    extensions: ['.tsx', '.ts', '.js'],
+    extensions: ['.ts', '.js'],
     fallback: {
-      "crypto": false,
-      "stream": false,
-      "buffer": false
+      "stream": require.resolve("stream-browserify"),
+      "crypto": require.resolve("crypto-browserify")
     }
   },
   optimization: {
@@ -46,5 +46,8 @@ module.exports = {
         { from: "src/popup/style.css", to: "styles.css" }
       ],
     }),
+    new webpack.ProvidePlugin({
+      process: 'process/browser'
+    })
   ]
 }; 

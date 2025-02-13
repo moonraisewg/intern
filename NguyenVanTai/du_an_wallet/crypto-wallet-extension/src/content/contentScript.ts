@@ -137,24 +137,53 @@ window.addEventListener('message', (event) => {
       break;
 
     case 'SOL_SIGN_MESSAGE_REQUEST':
-      // Sử dụng Promise cho sign message
-      sendMessageToBackground({
-        type: 'SIGN_MESSAGE',
-        message: event.data.message,
-        origin: window.location.origin
-      }).then(response => {
+      console.log('Received sign message request:', event.data);
+      Promise.race<WalletResponse>([
+        new Promise<WalletResponse>((_, reject) => 
+          setTimeout(() => {
+            console.log('Sign message timeout');
+            reject(new Error('Sign message timeout'));
+          }, 15000) 
+        ),
+        new Promise<WalletResponse>((resolve, reject) => {
+          try {
+            chrome.runtime.sendMessage({
+              type: 'SIGN_MESSAGE',
+              message: event.data.message,
+              origin: window.location.origin
+            } as WalletMessage, (response: WalletResponse) => {
+              console.log('Got sign message response:', response);
+              if (chrome.runtime.lastError) {
+                console.error('Chrome runtime error:', chrome.runtime.lastError);
+                reject(chrome.runtime.lastError);
+                return;
+              }
+              resolve(response || {
+                type: 'SOL_SIGN_MESSAGE_RESPONSE',
+                approved: false,
+                error: 'Invalid response'
+              });
+            });
+          } catch (error) {
+            console.error('Error sending sign message request:', error);
+            reject(error);
+          }
+        })
+      ]).then((response: WalletResponse) => {
+        console.log('Forwarding sign message response:', response);
         window.postMessage({
           type: 'SOL_SIGN_MESSAGE_RESPONSE',
           approved: response.approved,
-          signature: response.signature
-        }, '*');
+          signature: response.signature,
+          error: response.error
+        } as WalletResponse, '*');
       }).catch(error => {
         console.error('Sign message error:', error);
         window.postMessage({
           type: 'SOL_SIGN_MESSAGE_RESPONSE',
           approved: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }, '*');
+          error: error.message || 'Signing failed'
+        } as WalletResponse, '*');
       });
       break;
   }

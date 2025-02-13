@@ -17,7 +17,10 @@
       </div>
       <div class="balance-section">
         <h2>Số dư:</h2>
-        <p id="wallet-balance">0 SOL</p>
+        <div class="balance-container">
+          <p id="wallet-balance">0 SOL</p>
+          <button id="refresh-balance" class="icon-button">🔄</button>
+        </div>
       </div>
 
       <div class="address-section">
@@ -260,6 +263,24 @@
         <div class="step-buttons">
           <button id="reject-transaction" class="secondary-button">Từ chối</button>
           <button id="approve-transaction" class="primary-button">Ký và Gửi</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal xác nhận ký tin nhắn -->
+    <div id="sign-message-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <h2>Ký tin nhắn</h2>
+        <div class="site-info">
+          <h3 id="message-origin"></h3>
+        </div>
+        <div class="message-content">
+          <p>Nội dung tin nhắn:</p>
+          <pre id="message-content"></pre>
+        </div>
+        <div class="button-group">
+          <button id="reject-sign-message" class="secondary-button">Từ chối</button>
+          <button id="approve-sign-message" class="primary-button">Ký tin nhắn</button>
         </div>
       </div>
     </div>

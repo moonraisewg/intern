@@ -1,4 +1,53 @@
 (() => {
+  // Thêm Buffer polyfill
+  const Buffer = require('buffer/').Buffer;
+
+  // Thay thế Buffer bằng TextEncoder
+  async function signMessage(message) {
+    try {
+      return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Sign message request timeout'));
+        }, 60000); // Tăng timeout lên 60 giây
+
+        const messageBytes = message instanceof Uint8Array 
+          ? message 
+          : new TextEncoder().encode(typeof message === 'string' ? message : String(message));
+
+        console.log('Signing message:', {
+          original: message,
+          encoded: messageBytes
+        });
+
+        const handleResponse = (event) => {
+          if (event.data.type === 'SOL_SIGN_MESSAGE_RESPONSE') {
+            clearTimeout(timeoutId);
+            window.removeEventListener('message', handleResponse);
+            console.log('Received sign response:', event.data);
+            
+            if (event.data.approved && event.data.signature) {
+              resolve({ 
+                signature: new Uint8Array(event.data.signature)
+              });
+            } else {
+              reject(new Error(event.data.error || 'User rejected message signing'));
+            }
+          }
+        };
+
+        window.addEventListener('message', handleResponse);
+
+        window.postMessage({ 
+          type: 'SOL_SIGN_MESSAGE_REQUEST', 
+          message: Array.from(messageBytes)
+        }, '*');
+      });
+    } catch (error) {
+      console.error('Sign message error:', error);
+      throw error;
+    }
+  }
+
   window.solana = {
     isSolanaWallet: true,
     publicKey: null,
@@ -66,25 +115,7 @@
       });
     },
 
-    async signMessage(message) {
-      return new Promise((resolve, reject) => {
-        window.postMessage({ 
-          type: 'SOL_SIGN_MESSAGE_REQUEST', 
-          message: Array.from(message)
-        }, '*');
-
-        window.addEventListener('message', function handler(event) {
-          if (event.data.type === 'SOL_SIGN_MESSAGE_RESPONSE') {
-            window.removeEventListener('message', handler);
-            if (event.data.approved) {
-              resolve({ signature: new Uint8Array(event.data.signature) });
-            } else {
-              reject(new Error('User rejected message signing'));
-            }
-          }
-        });
-      });
-    }
+    signMessage: signMessage
   };
 })();
 

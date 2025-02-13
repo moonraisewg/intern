@@ -8,8 +8,11 @@ export class WalletService {
   private connection: web3.Connection;
   
   constructor() {
-    // Kết nối đến Solana devnet
-    this.connection = new web3.Connection(web3.clusterApiUrl('devnet'));
+    // Kết nối đến Solana devnet với commitment cao hơn
+    this.connection = new web3.Connection(
+      web3.clusterApiUrl('devnet'),
+      'confirmed'
+    );
   }
 
   async createWallet(): Promise<{address: string, seedPhrase: string}> {
@@ -81,12 +84,18 @@ export class WalletService {
   }
 
   async getBalance(): Promise<number> {
-    if (!this.keypair) {
+    try {
       const address = await this.getAddress();
       if (!address) throw new Error('No wallet found');
-      return await this.connection.getBalance(new web3.PublicKey(address));
+      
+      const publicKey = new web3.PublicKey(address);
+      const balance = await this.connection.getBalance(publicKey, 'confirmed');
+      console.log('Raw balance:', balance);
+      return balance;
+    } catch (error) {
+      console.error('Error getting balance:', error);
+      throw error;
     }
-    return await this.connection.getBalance(this.keypair.publicKey);
   }
 
   async setNetwork(network: string): Promise<void> {
@@ -106,14 +115,43 @@ export class WalletService {
   }
 
   async signMessage(message: Uint8Array): Promise<Uint8Array> {
-    if (!this.keypair) {
-      throw new Error('No wallet found');
+    try {
+      // Lấy secret key từ storage nếu chưa có keypair
+      if (!this.keypair) {
+        const data = await chrome.storage.local.get(['secretKey']);
+        if (!data.secretKey) {
+          throw new Error('No wallet found');
+        }
+        // Khôi phục keypair từ secret key đã lưu
+        this.keypair = web3.Keypair.fromSecretKey(
+          new Uint8Array(data.secretKey)
+        );
+      }
+
+      console.log('Signing message with keypair:', {
+        publicKey: this.keypair.publicKey.toString(),
+        messageLength: message.length
+      });
+
+      // Ký message trực tiếp với Uint8Array
+      const signature = nacl.sign.detached(
+        message,
+        this.keypair.secretKey
+      );
+
+      console.log('Message signed successfully:', {
+        messageBytes: Array.from(message),
+        signatureBytes: Array.from(signature)
+      });
+
+      return signature;
+    } catch (error) {
+      console.error('Error signing message:', error);
+      throw new Error(
+        error instanceof Error 
+          ? error.message 
+          : 'Failed to sign message'
+      );
     }
-    
-    // Sử dụng nacl để ký message
-    return nacl.sign.detached(
-      message,
-      this.keypair.secretKey
-    );
   }
 }

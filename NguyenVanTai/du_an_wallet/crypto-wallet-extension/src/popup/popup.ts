@@ -116,6 +116,86 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
       }
     }
+  } else if (hash.startsWith('#sign-message')) {
+    const params = new URLSearchParams(hash.substring(hash.indexOf('?')));
+    const origin = params.get('origin');
+    const encodedMessage = params.get('message');
+    
+    if (origin && encodedMessage) {
+      const signMessageModal = document.getElementById('sign-message-modal');
+      const messageOrigin = document.getElementById('message-origin');
+      const messageContent = document.getElementById('message-content');
+      const approveSignBtn = document.getElementById('approve-sign-message');
+      const rejectSignBtn = document.getElementById('reject-sign-message');
+
+      if (signMessageModal && messageOrigin && messageContent) {
+        try {
+          console.log('Preparing to sign message');
+
+          // Decode message từ base64
+          const messageBytes = new Uint8Array(
+            atob(encodedMessage)
+              .split('')
+              .map(c => c.charCodeAt(0))
+          );
+
+          // Hiển thị UI
+          walletInfo.style.display = 'none';
+          createWallet.style.display = 'none';
+          signMessageModal.style.display = 'block';
+          
+          messageOrigin.textContent = decodeURIComponent(origin);
+          // Hiển thị message dưới dạng text nếu có thể
+          messageContent.textContent = new TextDecoder().decode(messageBytes);
+
+          // Xử lý approve
+          approveSignBtn?.addEventListener('click', async () => {
+            try {
+              console.log('User approved signing');
+              const signature = await walletService.signMessage(messageBytes);
+              
+              console.log('Message signed successfully:', {
+                signature: Array.from(signature)
+              });
+
+              chrome.runtime.sendMessage({
+                type: 'SIGN_MESSAGE_RESPONSE',
+                approved: true,
+                signature: Array.from(signature)
+              });
+              window.close();
+            } catch (error) {
+              console.error('Error signing message:', error);
+              chrome.runtime.sendMessage({
+                type: 'SIGN_MESSAGE_RESPONSE',
+                approved: false,
+                error: error instanceof Error ? error.message : 'Failed to sign message'
+              });
+              window.close();
+            }
+          });
+
+          // Xử lý reject
+          rejectSignBtn?.addEventListener('click', () => {
+            console.log('User rejected signing');
+            chrome.runtime.sendMessage({
+              type: 'SIGN_MESSAGE_RESPONSE',
+              approved: false,
+              error: 'User rejected message signing'
+            });
+            window.close();
+          });
+        } catch (error) {
+          console.error('Error preparing message signing:', error);
+          chrome.runtime.sendMessage({
+            type: 'SIGN_MESSAGE_RESPONSE',
+            approved: false,
+            error: error instanceof Error ? error.message : 'Failed to prepare message signing'
+          });
+          window.close();
+        }
+      }
+    }
   } else {
     // Hiển thị màn hình thông tin ví bình thường
     const address = await walletService.getAddress();
@@ -124,19 +204,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       createWallet.style.display = 'none';
       walletAddress.textContent = address;
 
-      // Cập nhật số dư
-      try {
-        const balance = await walletService.getBalance();
-        const balanceInSOL = balance / web3.LAMPORTS_PER_SOL;
-        if (walletBalance) {
-          walletBalance.textContent = `${balanceInSOL} SOL`;
-        }
-      } catch (error) {
-        console.error('Error fetching balance:', error);
-        if (walletBalance) {
-          walletBalance.textContent = 'Error loading balance';
-        }
-      }
+      // Cập nhật số dư ngay lập tức
+      updateBalance();
+
+      // Tự động cập nhật số dư mỗi 30 giây
+      const balanceInterval = setInterval(updateBalance, 30000);
+
+      // Cleanup interval khi đóng popup
+      window.addEventListener('unload', () => {
+        clearInterval(balanceInterval);
+      });
     } else {
       walletInfo.style.display = 'none';
       createWallet.style.display = 'block';
@@ -295,19 +372,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       createWallet.style.display = 'none';
       walletAddress.textContent = address;
 
-      // Cập nhật số dư
-      try {
-        const balance = await walletService.getBalance();
-        const balanceInSOL = balance / web3.LAMPORTS_PER_SOL;
-        if (walletBalance) {
-          walletBalance.textContent = `${balanceInSOL} SOL`;
-        }
-      } catch (error) {
-        console.error('Error fetching balance:', error);
-        if (walletBalance) {
-          walletBalance.textContent = 'Error loading balance';
-        }
-      }
+      // Cập nhật số dư ngay lập tức
+      updateBalance();
+
+      // Tự động cập nhật số dư mỗi 30 giây
+      const balanceInterval = setInterval(updateBalance, 30000);
+
+      // Cleanup interval khi đóng popup
+      window.addEventListener('unload', () => {
+        clearInterval(balanceInterval);
+      });
     }
   }
 
@@ -467,4 +541,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
   }
+
+  // Thêm hàm update balance
+  async function updateBalance() {
+    try {
+      const balance = await walletService.getBalance();
+      const balanceInSOL = balance / web3.LAMPORTS_PER_SOL;
+      if (walletBalance) {
+        walletBalance.textContent = `${balanceInSOL.toFixed(4)} SOL`;
+      }
+    } catch (error) {
+      console.error('Error updating balance:', error);
+      if (walletBalance) {
+        walletBalance.textContent = 'Error loading balance';
+      }
+    }
+  }
+
+  // Thêm nút refresh balance
+  const refreshBalanceBtn = document.getElementById('refresh-balance');
+  refreshBalanceBtn?.addEventListener('click', () => {
+    updateBalance();
+  });
 });

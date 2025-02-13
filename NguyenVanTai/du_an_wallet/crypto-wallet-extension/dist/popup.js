@@ -3945,6 +3945,78 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
             }
         }
     }
+    else if (hash.startsWith('#sign-message')) {
+        const params = new URLSearchParams(hash.substring(hash.indexOf('?')));
+        const origin = params.get('origin');
+        const encodedMessage = params.get('message');
+        if (origin && encodedMessage) {
+            const signMessageModal = document.getElementById('sign-message-modal');
+            const messageOrigin = document.getElementById('message-origin');
+            const messageContent = document.getElementById('message-content');
+            const approveSignBtn = document.getElementById('approve-sign-message');
+            const rejectSignBtn = document.getElementById('reject-sign-message');
+            if (signMessageModal && messageOrigin && messageContent) {
+                try {
+                    console.log('Preparing to sign message');
+                    // Decode message từ base64
+                    const messageBytes = new Uint8Array(atob(encodedMessage)
+                        .split('')
+                        .map(c => c.charCodeAt(0)));
+                    // Hiển thị UI
+                    walletInfo.style.display = 'none';
+                    createWallet.style.display = 'none';
+                    signMessageModal.style.display = 'block';
+                    messageOrigin.textContent = decodeURIComponent(origin);
+                    // Hiển thị message dưới dạng text nếu có thể
+                    messageContent.textContent = new TextDecoder().decode(messageBytes);
+                    // Xử lý approve
+                    approveSignBtn === null || approveSignBtn === void 0 ? void 0 : approveSignBtn.addEventListener('click', () => __awaiter(void 0, void 0, void 0, function* () {
+                        try {
+                            console.log('User approved signing');
+                            const signature = yield walletService.signMessage(messageBytes);
+                            console.log('Message signed successfully:', {
+                                signature: Array.from(signature)
+                            });
+                            chrome.runtime.sendMessage({
+                                type: 'SIGN_MESSAGE_RESPONSE',
+                                approved: true,
+                                signature: Array.from(signature)
+                            });
+                            window.close();
+                        }
+                        catch (error) {
+                            console.error('Error signing message:', error);
+                            chrome.runtime.sendMessage({
+                                type: 'SIGN_MESSAGE_RESPONSE',
+                                approved: false,
+                                error: error instanceof Error ? error.message : 'Failed to sign message'
+                            });
+                            window.close();
+                        }
+                    }));
+                    // Xử lý reject
+                    rejectSignBtn === null || rejectSignBtn === void 0 ? void 0 : rejectSignBtn.addEventListener('click', () => {
+                        console.log('User rejected signing');
+                        chrome.runtime.sendMessage({
+                            type: 'SIGN_MESSAGE_RESPONSE',
+                            approved: false,
+                            error: 'User rejected message signing'
+                        });
+                        window.close();
+                    });
+                }
+                catch (error) {
+                    console.error('Error preparing message signing:', error);
+                    chrome.runtime.sendMessage({
+                        type: 'SIGN_MESSAGE_RESPONSE',
+                        approved: false,
+                        error: error instanceof Error ? error.message : 'Failed to prepare message signing'
+                    });
+                    window.close();
+                }
+            }
+        }
+    }
     else {
         // Hiển thị màn hình thông tin ví bình thường
         const address = yield walletService.getAddress();
@@ -3952,20 +4024,14 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
             walletInfo.style.display = 'block';
             createWallet.style.display = 'none';
             walletAddress.textContent = address;
-            // Cập nhật số dư
-            try {
-                const balance = yield walletService.getBalance();
-                const balanceInSOL = balance / web3.LAMPORTS_PER_SOL;
-                if (walletBalance) {
-                    walletBalance.textContent = `${balanceInSOL} SOL`;
-                }
-            }
-            catch (error) {
-                console.error('Error fetching balance:', error);
-                if (walletBalance) {
-                    walletBalance.textContent = 'Error loading balance';
-                }
-            }
+            // Cập nhật số dư ngay lập tức
+            updateBalance();
+            // Tự động cập nhật số dư mỗi 30 giây
+            const balanceInterval = setInterval(updateBalance, 30000);
+            // Cleanup interval khi đóng popup
+            window.addEventListener('unload', () => {
+                clearInterval(balanceInterval);
+            });
         }
         else {
             walletInfo.style.display = 'none';
@@ -4116,20 +4182,14 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
                 walletInfo.style.display = 'block';
                 createWallet.style.display = 'none';
                 walletAddress.textContent = address;
-                // Cập nhật số dư
-                try {
-                    const balance = yield walletService.getBalance();
-                    const balanceInSOL = balance / web3.LAMPORTS_PER_SOL;
-                    if (walletBalance) {
-                        walletBalance.textContent = `${balanceInSOL} SOL`;
-                    }
-                }
-                catch (error) {
-                    console.error('Error fetching balance:', error);
-                    if (walletBalance) {
-                        walletBalance.textContent = 'Error loading balance';
-                    }
-                }
+                // Cập nhật số dư ngay lập tức
+                updateBalance();
+                // Tự động cập nhật số dư mỗi 30 giây
+                const balanceInterval = setInterval(updateBalance, 30000);
+                // Cleanup interval khi đóng popup
+                window.addEventListener('unload', () => {
+                    clearInterval(balanceInterval);
+                });
             }
         });
     }
@@ -4284,6 +4344,29 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
             });
         }
     }
+    // Thêm hàm update balance
+    function updateBalance() {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const balance = yield walletService.getBalance();
+                const balanceInSOL = balance / web3.LAMPORTS_PER_SOL;
+                if (walletBalance) {
+                    walletBalance.textContent = `${balanceInSOL.toFixed(4)} SOL`;
+                }
+            }
+            catch (error) {
+                console.error('Error updating balance:', error);
+                if (walletBalance) {
+                    walletBalance.textContent = 'Error loading balance';
+                }
+            }
+        });
+    }
+    // Thêm nút refresh balance
+    const refreshBalanceBtn = document.getElementById('refresh-balance');
+    refreshBalanceBtn === null || refreshBalanceBtn === void 0 ? void 0 : refreshBalanceBtn.addEventListener('click', () => {
+        updateBalance();
+    });
 }));
 
 
@@ -4464,8 +4547,8 @@ const nacl = __importStar(__webpack_require__(947));
 class WalletService {
     constructor() {
         this.keypair = null;
-        // Kết nối đến Solana devnet
-        this.connection = new web3.Connection(web3.clusterApiUrl('devnet'));
+        // Kết nối đến Solana devnet với commitment cao hơn
+        this.connection = new web3.Connection(web3.clusterApiUrl('devnet'), 'confirmed');
     }
     createWallet() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -4531,13 +4614,19 @@ class WalletService {
     }
     getBalance() {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!this.keypair) {
+            try {
                 const address = yield this.getAddress();
                 if (!address)
                     throw new Error('No wallet found');
-                return yield this.connection.getBalance(new web3.PublicKey(address));
+                const publicKey = new web3.PublicKey(address);
+                const balance = yield this.connection.getBalance(publicKey, 'confirmed');
+                console.log('Raw balance:', balance);
+                return balance;
             }
-            return yield this.connection.getBalance(this.keypair.publicKey);
+            catch (error) {
+                console.error('Error getting balance:', error);
+                throw error;
+            }
         });
     }
     setNetwork(network) {
@@ -4561,11 +4650,34 @@ class WalletService {
     }
     signMessage(message) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!this.keypair) {
-                throw new Error('No wallet found');
+            try {
+                // Lấy secret key từ storage nếu chưa có keypair
+                if (!this.keypair) {
+                    const data = yield chrome.storage.local.get(['secretKey']);
+                    if (!data.secretKey) {
+                        throw new Error('No wallet found');
+                    }
+                    // Khôi phục keypair từ secret key đã lưu
+                    this.keypair = web3.Keypair.fromSecretKey(new Uint8Array(data.secretKey));
+                }
+                console.log('Signing message with keypair:', {
+                    publicKey: this.keypair.publicKey.toString(),
+                    messageLength: message.length
+                });
+                // Ký message trực tiếp với Uint8Array
+                const signature = nacl.sign.detached(message, this.keypair.secretKey);
+                console.log('Message signed successfully:', {
+                    messageBytes: Array.from(message),
+                    signatureBytes: Array.from(signature)
+                });
+                return signature;
             }
-            // Sử dụng nacl để ký message
-            return nacl.sign.detached(message, this.keypair.secretKey);
+            catch (error) {
+                console.error('Error signing message:', error);
+                throw new Error(error instanceof Error
+                    ? error.message
+                    : 'Failed to sign message');
+            }
         });
     }
 }
