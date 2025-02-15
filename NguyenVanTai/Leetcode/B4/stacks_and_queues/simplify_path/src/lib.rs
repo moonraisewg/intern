@@ -66,3 +66,66 @@
 
 // "..." is a valid name for a directory in this problem.
 
+use std::fmt::format;
+
+
+
+pub fn simplify_path(path: String) -> String {
+    // tạo stack lưu trữ các phần của đường dẫn 
+    let mut stack: Vec<&str> = Vec::new();
+
+    // chia duong dan thanh cac phaanf dua tren dau /
+    for part in path.split('/') {
+        match part {
+            // neu phan la "..",  thi quay lai thu muc cha 
+            // neu stack khong rong, pop phan tu cuoi cung ra khoi stack
+
+            ".." => {
+                if !stack.is_empty(){
+                    stack.pop();
+                }
+            }, // neu pan tu la dau "." hoac chuoi rong, ta bo qua no 
+            "." | "" => {},
+            // neu phan la ten thu muc hop le, push vao stack 
+            _ => stack.push(part),
+
+        }
+    }
+
+    // tao duong dan chuan hoa tu cac phan trong stack 
+    let result = format!("/{}", stack.join("/"));
+
+    // return ve duong dan chuan hoa 
+    result
+} 
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_example_1 () {
+        assert_eq!(simplify_path("/home".to_string()),"/home")
+    }
+    #[test]
+    fn test_example_2() {
+        assert_eq!(simplify_path("/home//foo/".to_string()), "/home/foo");
+    }
+
+    #[test]
+    fn test_example_3() {
+        assert_eq!(simplify_path("/home/user/Documents/../Pictures".to_string()), "/home/user/Pictures");
+    }
+
+    #[test]
+    fn test_example_4() {
+        assert_eq!(simplify_path("/../".to_string()), "/");
+    }
+
+    #[test]
+    fn test_example_5() {
+        assert_eq!(simplify_path("/.../a/../b/c/../d/./".to_string()), "/.../b/d");
+    }
+
+
+}
