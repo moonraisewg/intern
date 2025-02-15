@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Test Solana Wallet Connection</title>
+    <script src="https://bundle.run/buffer@6.0.3"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -162,28 +163,11 @@
             try {
                 const message = new TextEncoder().encode('Test Message Signing');
                 const signedMessage = await window.solana.signMessage(message);
-                showResult(`Đã ký tin nhắn thành công! Signature: ${Buffer.from(signedMessage.signature).toString('hex')}`);
+                showResult(`Đã ký tin nhắn thành công! Signature: ${Array.from(signedMessage.signature).map(b => b.toString(16).padStart(2, '0')).join('')}`);
             } catch (err) {
                 showResult(`Lỗi ký tin nhắn: ${err.message}`, true);
             }
         });
-
-        signTxBtn.addEventListener('click', async () => {
-            try {
-                // Tạo một transaction test đơn giản
-                const transaction = {
-                    from: window.solana.publicKey.toString(),
-                    to: 'receiver_address',
-                    amount: 0.1,
-                    fee: 0.000005
-                };
-                
-                const signedTx = await window.solana.signTransaction(transaction);
-                showResult('Đã ký giao dịch thành công!');
-            } catch (err) {
-                showResult(`Lỗi ký giao dịch: ${err.message}`, true);
-            }
-        });
     </script>
 </body>
-</html> 
+</html>

@@ -2,19 +2,28 @@ import * as web3 from '@solana/web3.js';
 import * as bip39 from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 import * as nacl from 'tweetnacl';
+import { ConnectionService } from './connection';
+import { Connection } from '@solana/web3.js';
 
 export class WalletService {
-  private keypair: web3.Keypair | null = null;
+  private static instance: WalletService;
   private connection: web3.Connection;
-  
-  constructor() {
-    // Kết nối đến Solana devnet với commitment cao hơn
-    this.connection = new web3.Connection(
-      web3.clusterApiUrl('devnet'),
-      'confirmed'
-    );
+  private connectionService: ConnectionService;
+
+  private constructor() {
+    this.connectionService = ConnectionService.getInstance();
+    this.connection = new web3.Connection(web3.clusterApiUrl('devnet'), 'confirmed');
   }
 
+  public static getInstance(): WalletService {
+    if (!WalletService.instance) {
+      WalletService.instance = new WalletService();
+    }
+    return WalletService.instance;
+  }
+
+  private keypair: web3.Keypair | null = null;
+  
   async createWallet(): Promise<{address: string, seedPhrase: string}> {
     try {
       // Tạo seed phrase mới (12 từ)
@@ -66,21 +75,17 @@ export class WalletService {
       if (!data.secretKey) {
         throw new Error('No wallet found');
       }
-      // Khôi phục keypair từ secret key đã lưu
       this.keypair = web3.Keypair.fromSecretKey(
         Uint8Array.from(data.secretKey)
       );
     }
     
     transaction.feePayer = this.keypair.publicKey;
-    transaction.recentBlockhash = (
-      await this.connection.getLatestBlockhash()
-    ).blockhash;
+    const { blockhash } = await this.connectionService.getLatestBlockhash();
+    transaction.recentBlockhash = blockhash;
     
-    // Ký giao dịch
     transaction.sign(this.keypair);
-    const serializedTx = transaction.serialize().toString('base64');
-    return serializedTx;
+    return transaction.serialize().toString('base64');
   }
 
   async getBalance(): Promise<number> {
@@ -89,9 +94,7 @@ export class WalletService {
       if (!address) throw new Error('No wallet found');
       
       const publicKey = new web3.PublicKey(address);
-      const balance = await this.connection.getBalance(publicKey, 'confirmed');
-      console.log('Raw balance:', balance);
-      return balance;
+      return await this.connectionService.getBalance(address);
     } catch (error) {
       console.error('Error getting balance:', error);
       throw error;

@@ -2,14 +2,15 @@
   // Thêm Buffer polyfill
   const Buffer = require('buffer/').Buffer;
 
-  // Thay thế Buffer bằng TextEncoder
+  // Thay đổi hàm signMessage để xử lý message dưới dạng Uint8Array
   async function signMessage(message) {
     try {
       return new Promise((resolve, reject) => {
         const timeoutId = setTimeout(() => {
           reject(new Error('Sign message request timeout'));
-        }, 60000); // Tăng timeout lên 60 giây
+        }, 60000);
 
+        // Chuyển đổi message thành Uint8Array
         const messageBytes = message instanceof Uint8Array 
           ? message 
           : new TextEncoder().encode(typeof message === 'string' ? message : String(message));

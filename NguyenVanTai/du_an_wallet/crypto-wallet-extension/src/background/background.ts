@@ -18,9 +18,9 @@ interface WalletResponse {
   error?: string | null;
 }
 
-// Khởi tạo service worker
-const walletService = new WalletService();
-const connectionService = new ConnectionService();
+// Thành:
+const walletService = WalletService.getInstance();
+const connectionService = ConnectionService.getInstance();
 
 // Thêm Map để lưu các pending requests
 const pendingRequests = new Map<number, {

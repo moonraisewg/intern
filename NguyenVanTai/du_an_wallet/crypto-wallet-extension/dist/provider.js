@@ -181,9 +181,9 @@ const customInspectSymbol =
     ? Symbol['for']('nodejs.util.inspect.custom') // eslint-disable-line dot-notation
     : null
 
-exports.hp = Buffer
+exports.Buffer = Buffer
 __webpack_unused_export__ = SlowBuffer
-exports.IS = 50
+exports.INSPECT_MAX_BYTES = 50
 
 const K_MAX_LENGTH = 0x7fffffff
 __webpack_unused_export__ = K_MAX_LENGTH
@@ -782,7 +782,7 @@ Buffer.prototype.equals = function equals (b) {
 
 Buffer.prototype.inspect = function inspect () {
   let str = ''
-  const max = exports.IS
+  const max = exports.INSPECT_MAX_BYTES
   str = this.toString('hex', 0, max).replace(/(.{2})/g, '$1 ').trim()
   if (this.length > max) str += ' ... '
   return '<Buffer ' + str + '>'
@@ -2396,16 +2396,17 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
 var __webpack_exports__ = {};
 (() => {
   // Thêm Buffer polyfill
-  const Buffer = (__webpack_require__(287)/* .Buffer */ .hp);
+  const Buffer = (__webpack_require__(287).Buffer);
 
-  // Thay thế Buffer bằng TextEncoder
+  // Thay đổi hàm signMessage để xử lý message dưới dạng Uint8Array
   async function signMessage(message) {
     try {
       return new Promise((resolve, reject) => {
         const timeoutId = setTimeout(() => {
           reject(new Error('Sign message request timeout'));
-        }, 60000); // Tăng timeout lên 60 giây
+        }, 60000);
 
+        // Chuyển đổi message thành Uint8Array
         const messageBytes = message instanceof Uint8Array 
           ? message 
           : new TextEncoder().encode(typeof message === 'string' ? message : String(message));

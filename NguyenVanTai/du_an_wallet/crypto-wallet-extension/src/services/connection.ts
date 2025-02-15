@@ -1,14 +1,26 @@
 import { WalletService } from './wallet';
 
 export class ConnectionService {
-  private connectedSites: string[] = [];
-  private popupWindow: chrome.windows.Window | null = null;
+  private static instance: ConnectionService;
+  private constructor() {
+    this.handleConnectionRequest = this.handleConnectionRequest.bind(this);
+    this.isConnected = this.isConnected.bind(this);
+  }
+
+  public static getInstance(): ConnectionService {
+    if (!ConnectionService.instance) {
+      ConnectionService.instance = new ConnectionService();
+    }
+    return ConnectionService.instance;
+  }
+
+  connectedSites: string[] = [];
+  popupWindow: chrome.windows.Window | null = null;
 
   async handleConnectionRequest(origin: string): Promise<{approved: boolean, publicKey?: string}> {
-    // Kiểm tra nếu đã có popup đang mở thì đóng lại
-    if (this.popupWindow) {
+    if (this.popupWindow?.id !== undefined) {
       try {
-        await chrome.windows.remove(this.popupWindow.id!);
+        await chrome.windows.remove(this.popupWindow.id);
       } catch (error) {
         console.log('Window already closed');
       }
@@ -16,13 +28,9 @@ export class ConnectionService {
     }
 
     const approved = await this.showConnectionConfirmation(origin);
-    
     if (approved) {
-      // Lấy public key từ WalletService
-      const walletService = new WalletService();
+      const walletService = WalletService.getInstance();
       const publicKey = await walletService.getAddress();
-      
-      // Chỉ trả về publicKey nếu nó không null
       if (publicKey) {
         return { approved: true, publicKey };
       }
@@ -37,8 +45,8 @@ export class ConnectionService {
   }
 
   async getConnectedSites(): Promise<string[]> {
-    const data = await chrome.storage.local.get(['connectedSites']);
-    return data.connectedSites || [];
+    const result = await chrome.storage.local.get('connectedSites');
+    return result.connectedSites || [];
   }
 
   async addConnectedSite(origin: string): Promise<void> {
@@ -57,9 +65,7 @@ export class ConnectionService {
 
   private async showConnectionConfirmation(origin: string): Promise<boolean> {
     return new Promise((resolve) => {
-      // Lấy thông tin về cửa sổ hiện tại
       chrome.windows.getCurrent(async (currentWindow) => {
-        // Tính toán vị trí cho popup
         const width = 375;
         const height = 600;
         const left = Math.max(
@@ -71,7 +77,6 @@ export class ConnectionService {
           0
         );
 
-        // Mở popup xác nhận kết nối
         const popup = await chrome.windows.create({
           url: chrome.runtime.getURL(`popup.html#connect?origin=${encodeURIComponent(origin)}`),
           type: 'popup',
@@ -85,19 +90,25 @@ export class ConnectionService {
         this.popupWindow = popup;
       });
 
-      // Lắng nghe response từ popup
       const listener = (message: any) => {
         if (message.type === 'CONNECTION_RESPONSE') {
           chrome.runtime.onMessage.removeListener(listener);
-          if (this.popupWindow) {
-            chrome.windows.remove(this.popupWindow.id!);
+          if (this.popupWindow?.id !== undefined) {
+            chrome.windows.remove(this.popupWindow.id);
             this.popupWindow = null;
           }
           resolve(message.approved);
         }
       };
-
       chrome.runtime.onMessage.addListener(listener);
     });
+  }
+
+  async getLatestBlockhash(): Promise<{ blockhash: string }> {
+    throw new Error("Method not implemented");
+  }
+
+  async getBalance(address: string): Promise<number> {
+    throw new Error("Method not implemented");
   }
 }

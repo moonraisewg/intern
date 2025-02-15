@@ -1,10 +1,11 @@
 import { WalletService } from '../services/wallet';
 import * as web3 from '@solana/web3.js';
 import { ConnectionService } from '../services/connection';
+import { setupEventHandlers } from './EventHandlers';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const walletService = new WalletService();
-  const connectionService = new ConnectionService();
+  const walletService = WalletService.getInstance();
+  const connectionService = ConnectionService.getInstance();
 
   // Các elements
   const walletInfo = document.getElementById('wallet-info');
@@ -563,4 +564,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   refreshBalanceBtn?.addEventListener('click', () => {
     updateBalance();
   });
+
+  setupEventHandlers();
 });
