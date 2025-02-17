@@ -97,7 +97,7 @@ mod tests {
             right: Some(Rc::new(RefCell::new(TreeNode {
                 val: 2,
                 left: None,
-                right: None, // Sửa từ Some thành None để đúng với input [1,null,2]
+                right: None, 
             }))),
         })));
         assert_eq!(max_depth(root), 2); // Kiểm tra kết quả

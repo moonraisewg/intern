@@ -1,0 +1,12 @@
+[package]
+name = "tree_and_graphs1"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+members = [ "binary_tree_zigzag_level_order_traversal", "deepest_leaves_sum", "diameter_of_binary_tree",
+    "maximum",
+    "minimum_depth_of_binary_tree"
+]
+
+[dependencies]
