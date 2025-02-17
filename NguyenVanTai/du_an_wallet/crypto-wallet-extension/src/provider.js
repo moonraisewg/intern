@@ -6,11 +6,17 @@
   async function signMessage(message) {
     try {
       return new Promise((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-          reject(new Error('Sign message request timeout'));
-        }, 60000);
+        let timeoutId;
+        let messageHandler = null;
 
-        // Chuyển đổi message thành Uint8Array
+        timeoutId = setTimeout(() => {
+          if (messageHandler) {
+            window.removeEventListener('message', messageHandler);
+            messageHandler = null;
+          }
+          reject(new Error('Sign message request timeout'));
+        }, 20000);
+
         const messageBytes = message instanceof Uint8Array 
           ? message 
           : new TextEncoder().encode(typeof message === 'string' ? message : String(message));
@@ -20,10 +26,12 @@
           encoded: messageBytes
         });
 
-        const handleResponse = (event) => {
+        messageHandler = (event) => {
           if (event.data.type === 'SOL_SIGN_MESSAGE_RESPONSE') {
             clearTimeout(timeoutId);
-            window.removeEventListener('message', handleResponse);
+            window.removeEventListener('message', messageHandler);
+            messageHandler = null;
+            
             console.log('Received sign response:', event.data);
             
             if (event.data.approved && event.data.signature) {
@@ -36,12 +44,18 @@
           }
         };
 
-        window.addEventListener('message', handleResponse);
+        window.addEventListener('message', messageHandler);
 
-        window.postMessage({ 
-          type: 'SOL_SIGN_MESSAGE_REQUEST', 
-          message: Array.from(messageBytes)
-        }, '*');
+        try {
+          window.postMessage({ 
+            type: 'SOL_SIGN_MESSAGE_REQUEST', 
+            message: Array.from(messageBytes)
+          }, '*');
+        } catch (error) {
+          clearTimeout(timeoutId);
+          window.removeEventListener('message', messageHandler);
+          reject(error);
+        }
       });
     } catch (error) {
       console.error('Sign message error:', error);

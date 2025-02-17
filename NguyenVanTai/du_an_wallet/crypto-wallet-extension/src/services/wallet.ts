@@ -90,11 +90,20 @@ export class WalletService {
 
   async getBalance(): Promise<number> {
     try {
+      // Lấy địa chỉ ví hiện tại
       const address = await this.getAddress();
-      if (!address) throw new Error('No wallet found');
-      
+      if (!address) {
+        throw new Error('No wallet found');
+      }
+
+      // Tạo public key từ địa chỉ
       const publicKey = new web3.PublicKey(address);
-      return await this.connectionService.getBalance(address);
+
+      // Lấy số dư từ connection
+      const balance = await this.connection.getBalance(publicKey);
+      console.log('Got balance:', balance, 'for address:', address);
+      
+      return balance;
     } catch (error) {
       console.error('Error getting balance:', error);
       throw error;

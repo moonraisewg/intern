@@ -64,8 +64,15 @@ async function sendMessageToBackground(message: any): Promise<any> {
   });
 }
 
+// Thêm log khi content script được load
+console.log('Content script loaded');
+
+// Thêm biến để theo dõi listener
+let messageListener: ((event: MessageEvent) => void) | null = null;
+
 // Lắng nghe message từ trang web
-window.addEventListener('message', (event) => {
+window.addEventListener('message', async (event) => {
+  console.log('Content script received message:', event.data);
   if (event.source !== window) return;
 
   switch (event.data.type) {
@@ -138,53 +145,61 @@ window.addEventListener('message', (event) => {
 
     case 'SOL_SIGN_MESSAGE_REQUEST':
       console.log('Received sign message request:', event.data);
-      Promise.race<WalletResponse>([
-        new Promise<WalletResponse>((_, reject) => 
-          setTimeout(() => {
-            console.log('Sign message timeout');
-            reject(new Error('Sign message timeout'));
-          }, 15000) 
-        ),
-        new Promise<WalletResponse>((resolve, reject) => {
-          try {
-            chrome.runtime.sendMessage({
-              type: 'SIGN_MESSAGE',
-              message: event.data.message,
-              origin: window.location.origin
-            } as WalletMessage, (response: WalletResponse) => {
-              console.log('Got sign message response:', response);
-              if (chrome.runtime.lastError) {
-                console.error('Chrome runtime error:', chrome.runtime.lastError);
-                reject(chrome.runtime.lastError);
-                return;
-              }
-              resolve(response || {
-                type: 'SOL_SIGN_MESSAGE_RESPONSE',
-                approved: false,
-                error: 'Invalid response'
-              });
-            });
-          } catch (error) {
-            console.error('Error sending sign message request:', error);
-            reject(error);
-          }
-        })
-      ]).then((response: WalletResponse) => {
-        console.log('Forwarding sign message response:', response);
+      
+      let isResponseReceived = false;
+      let timeoutId: NodeJS.Timeout | undefined;
+
+      try {
+        if (!chrome?.runtime?.id) {
+          throw new Error('Extension context invalidated');
+        }
+
+        const messagePromise = new Promise<WalletResponse>((resolve, reject) => {
+          timeoutId = setTimeout(() => {
+            if (!isResponseReceived) {
+              console.log('Sign message timeout - cleaning up');
+              reject(new Error('Sign message timeout'));
+            }
+          }, 15000); // Giảm xuống 15 giây
+
+          chrome.runtime.sendMessage({
+            type: 'SIGN_MESSAGE',
+            message: event.data.message,
+            origin: window.location.origin
+          }, (response) => {
+            isResponseReceived = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+              return;
+            }
+            resolve(response);
+          });
+        });
+
+        const response = await messagePromise;
+        console.log('Got sign message response:', response);
+        
         window.postMessage({
           type: 'SOL_SIGN_MESSAGE_RESPONSE',
           approved: response.approved,
           signature: response.signature,
           error: response.error
-        } as WalletResponse, '*');
-      }).catch(error => {
-        console.error('Sign message error:', error);
+        }, '*');
+
+      } catch (error) {
+        console.error('Message sending failed:', error);
         window.postMessage({
           type: 'SOL_SIGN_MESSAGE_RESPONSE',
           approved: false,
-          error: error.message || 'Signing failed'
-        } as WalletResponse, '*');
-      });
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }, '*');
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      }
       break;
   }
 });

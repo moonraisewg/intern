@@ -31388,11 +31388,17 @@ class WalletService {
     getBalance() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
+                // Lấy địa chỉ ví hiện tại
                 const address = yield this.getAddress();
-                if (!address)
+                if (!address) {
                     throw new Error('No wallet found');
+                }
+                // Tạo public key từ địa chỉ
                 const publicKey = new web3.PublicKey(address);
-                return yield this.connectionService.getBalance(address);
+                // Lấy số dư từ connection
+                const balance = yield this.connection.getBalance(publicKey);
+                console.log('Got balance:', balance, 'for address:', address);
+                return balance;
             }
             catch (error) {
                 console.error('Error getting balance:', error);

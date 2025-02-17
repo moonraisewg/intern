@@ -53,8 +53,14 @@ function sendMessageToBackground(message) {
         });
     });
 }
+// Thêm log khi content script được load
+console.log('Content script loaded');
+// Thêm biến để theo dõi listener
+let messageListener = null;
 // Lắng nghe message từ trang web
-window.addEventListener('message', (event) => {
+window.addEventListener('message', (event) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    console.log('Content script received message:', event.data);
     if (event.source !== window)
         return;
     switch (event.data.type) {
@@ -124,55 +130,59 @@ window.addEventListener('message', (event) => {
             break;
         case 'SOL_SIGN_MESSAGE_REQUEST':
             console.log('Received sign message request:', event.data);
-            Promise.race([
-                new Promise((_, reject) => setTimeout(() => {
-                    console.log('Sign message timeout');
-                    reject(new Error('Sign message timeout'));
-                }, 15000)),
-                new Promise((resolve, reject) => {
-                    try {
-                        chrome.runtime.sendMessage({
-                            type: 'SIGN_MESSAGE',
-                            message: event.data.message,
-                            origin: window.location.origin
-                        }, (response) => {
-                            console.log('Got sign message response:', response);
-                            if (chrome.runtime.lastError) {
-                                console.error('Chrome runtime error:', chrome.runtime.lastError);
-                                reject(chrome.runtime.lastError);
-                                return;
-                            }
-                            resolve(response || {
-                                type: 'SOL_SIGN_MESSAGE_RESPONSE',
-                                approved: false,
-                                error: 'Invalid response'
-                            });
-                        });
-                    }
-                    catch (error) {
-                        console.error('Error sending sign message request:', error);
-                        reject(error);
-                    }
-                })
-            ]).then((response) => {
-                console.log('Forwarding sign message response:', response);
+            let isResponseReceived = false;
+            let timeoutId;
+            try {
+                if (!((_a = chrome === null || chrome === void 0 ? void 0 : chrome.runtime) === null || _a === void 0 ? void 0 : _a.id)) {
+                    throw new Error('Extension context invalidated');
+                }
+                const messagePromise = new Promise((resolve, reject) => {
+                    timeoutId = setTimeout(() => {
+                        if (!isResponseReceived) {
+                            console.log('Sign message timeout - cleaning up');
+                            reject(new Error('Sign message timeout'));
+                        }
+                    }, 15000); // Giảm xuống 15 giây
+                    chrome.runtime.sendMessage({
+                        type: 'SIGN_MESSAGE',
+                        message: event.data.message,
+                        origin: window.location.origin
+                    }, (response) => {
+                        isResponseReceived = true;
+                        if (timeoutId)
+                            clearTimeout(timeoutId);
+                        if (chrome.runtime.lastError) {
+                            reject(chrome.runtime.lastError);
+                            return;
+                        }
+                        resolve(response);
+                    });
+                });
+                const response = yield messagePromise;
+                console.log('Got sign message response:', response);
                 window.postMessage({
                     type: 'SOL_SIGN_MESSAGE_RESPONSE',
                     approved: response.approved,
                     signature: response.signature,
                     error: response.error
                 }, '*');
-            }).catch(error => {
-                console.error('Sign message error:', error);
+            }
+            catch (error) {
+                console.error('Message sending failed:', error);
                 window.postMessage({
                     type: 'SOL_SIGN_MESSAGE_RESPONSE',
                     approved: false,
-                    error: error.message || 'Signing failed'
+                    error: error instanceof Error ? error.message : 'Unknown error'
                 }, '*');
-            });
+            }
+            finally {
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+            }
             break;
     }
-});
+}));
 // Lắng nghe message từ background
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     try {
