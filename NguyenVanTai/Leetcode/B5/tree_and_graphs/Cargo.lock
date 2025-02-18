@@ -15,6 +15,10 @@ name = "diameter_of_binary_tree"
 version = "0.1.0"
 
 [[package]]
+name = "insert_into_a_binary_search_tree"
+version = "0.1.0"
+
+[[package]]
 name = "maximum"
 version = "0.1.0"
 
