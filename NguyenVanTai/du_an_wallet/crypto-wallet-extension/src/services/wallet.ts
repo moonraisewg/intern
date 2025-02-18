@@ -4,11 +4,18 @@ import { wordlist } from '@scure/bip39/wordlists/english';
 import * as nacl from 'tweetnacl';
 import { ConnectionService } from './connection';
 import { Connection } from '@solana/web3.js';
+import { Buffer } from 'buffer';
+
+// Thêm polyfill cho Buffer
+if (typeof window !== 'undefined') {
+  window.Buffer = Buffer;
+}
 
 export class WalletService {
   private static instance: WalletService;
   private connection: web3.Connection;
   private connectionService: ConnectionService;
+  private wallet: any; // Replace 'any' with your wallet type
 
   private constructor() {
     this.connectionService = ConnectionService.getInstance();
@@ -69,23 +76,43 @@ export class WalletService {
     }
   }
 
-  async signTransaction(transaction: web3.Transaction): Promise<string> {
-    if (!this.keypair) {
-      const data = await chrome.storage.local.get(['secretKey']);
-      if (!data.secretKey) {
-        throw new Error('No wallet found');
+  async signTransaction(transaction: web3.Transaction): Promise<web3.Transaction> {
+    try {
+      // Lấy secret key từ storage nếu chưa có keypair
+      if (!this.keypair) {
+        const data = await chrome.storage.local.get(['secretKey']);
+        if (!data.secretKey) {
+          throw new Error('Không tìm thấy ví');
+        }
+        this.keypair = web3.Keypair.fromSecretKey(
+          new Uint8Array(data.secretKey)
+        );
       }
-      this.keypair = web3.Keypair.fromSecretKey(
-        Uint8Array.from(data.secretKey)
-      );
+
+      // Kiểm tra và thêm feePayer nếu chưa có
+      if (!transaction.feePayer) {
+        transaction.feePayer = this.keypair.publicKey;
+      }
+
+      // Kiểm tra và thêm recentBlockhash nếu chưa có
+      if (!transaction.recentBlockhash) {
+        const { blockhash } = await this.connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
+      }
+
+      // Ký giao dịch
+      transaction.partialSign(this.keypair);
+
+      // Kiểm tra chữ ký
+      if (!transaction.verifySignatures()) {
+        throw new Error('Xác thực chữ ký thất bại');
+      }
+
+      return transaction;
+    } catch (error) {
+      console.error('Lỗi khi ký giao dịch:', error);
+      throw error;
     }
-    
-    transaction.feePayer = this.keypair.publicKey;
-    const { blockhash } = await this.connectionService.getLatestBlockhash();
-    transaction.recentBlockhash = blockhash;
-    
-    transaction.sign(this.keypair);
-    return transaction.serialize().toString('base64');
   }
 
   async getBalance(): Promise<number> {

@@ -1,4 +1,5 @@
 import { PublicKey, Transaction } from '@solana/web3.js';
+import { Buffer } from 'buffer';
 
 // Định nghĩa interface cho error
 interface WalletError extends Error {
@@ -14,6 +15,7 @@ interface WalletResponse {
   signedTx?: any;
   signature?: Uint8Array;
   data?: any;
+  handled?: boolean;
 }
 
 // Định nghĩa interface cho message
@@ -23,6 +25,14 @@ interface WalletMessage {
   transaction?: any;
   message?: any;
   id?: string;
+}
+
+// Định nghĩa interface cho response
+interface TransactionResponse {
+  type: string;
+  approved: boolean;
+  signedTx?: any;
+  error?: string;
 }
 
 // Tạo một ID duy nhất cho mỗi request
@@ -72,159 +82,131 @@ let messageListener: ((event: MessageEvent) => void) | null = null;
 
 // Lắng nghe message từ trang web
 window.addEventListener('message', async (event) => {
-  console.log('Content script received message:', event.data);
   if (event.source !== window) return;
 
-  switch (event.data.type) {
-    case 'SOL_CONNECT_REQUEST':
-      console.log('Received SOL_CONNECT_REQUEST from provider');
-      // Sử dụng Promise.race để thêm timeout
-      Promise.race<WalletResponse>([
-        new Promise<WalletResponse>((_, reject) => 
-          setTimeout(() => reject(new Error('Request timeout')), 30000)
-        ),
-        new Promise<WalletResponse>((resolve, reject) => {
-          try {
-            chrome.runtime.sendMessage({
-              type: 'CONNECT_REQUEST',
-              origin: window.location.origin
-            } as WalletMessage, (response: WalletResponse) => {
-              if (chrome.runtime.lastError) {
-                reject(chrome.runtime.lastError);
-                return;
-              }
-              resolve(response || {
-                type: 'SOL_CONNECT_RESPONSE',
-                approved: false,
-                error: 'Invalid response'
-              });
-            });
-          } catch (error) {
-            reject(error);
-          }
-        })
-      ]).then((response: WalletResponse) => {
-        console.log('Got response from background:', response);
-        window.postMessage({
-          type: 'SOL_CONNECT_RESPONSE',
-          approved: response?.approved || false,
-          publicKey: response?.publicKey,
-          error: response?.error
-        } as WalletResponse, '*');
-      }).catch(error => {
-        console.error('Connection error:', error);
-        window.postMessage({
-          type: 'SOL_CONNECT_RESPONSE',
-          approved: false,
-          error: error.message || 'Connection failed'
-        } as WalletResponse, '*');
-      });
-      break;
+  try {
+    switch (event.data.type) {
+      case 'SOL_CONNECT_REQUEST':
+        console.log('Received SOL_CONNECT_REQUEST from provider');
+        try {
+          const response = await chrome.runtime.sendMessage({
+            type: 'CONNECT_REQUEST',
+            origin: window.location.origin
+          });
 
-    case 'SOL_SIGN_TRANSACTION_REQUEST':
-      // Sử dụng Promise cho sign transaction
-      sendMessageToBackground({
-        type: 'SIGN_TRANSACTION',
-        transaction: event.data.transaction,
-        origin: window.location.origin
-      }).then(response => {
-        window.postMessage({
-          type: 'SOL_SIGN_TRANSACTION_RESPONSE',
-          approved: response.approved,
-          signedTx: response.signedTx
-        }, '*');
-      }).catch(error => {
-        console.error('Sign transaction error:', error);
-        window.postMessage({
-          type: 'SOL_SIGN_TRANSACTION_RESPONSE',
-          approved: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }, '*');
-      });
-      break;
+          console.log('Got response from background:', response);
+          window.postMessage({
+            type: 'SOL_CONNECT_RESPONSE',
+            approved: response?.approved || false,
+            publicKey: response?.publicKey,
+            error: response?.error
+          }, '*');
 
-    case 'SOL_SIGN_MESSAGE_REQUEST':
-      console.log('Received sign message request:', event.data);
-      
-      let isResponseReceived = false;
-      let timeoutId: NodeJS.Timeout | undefined;
-
-      try {
-        if (!chrome?.runtime?.id) {
-          throw new Error('Extension context invalidated');
+        } catch (error) {
+          console.error('Connection error:', error);
+          window.postMessage({
+            type: 'SOL_CONNECT_RESPONSE',
+            approved: false,
+            error: error instanceof Error ? error.message : 'Connection failed'
+          }, '*');
         }
+        break;
 
-        const messagePromise = new Promise<WalletResponse>((resolve, reject) => {
-          timeoutId = setTimeout(() => {
-            if (!isResponseReceived) {
-              console.log('Sign message timeout - cleaning up');
-              reject(new Error('Sign message timeout'));
+      case 'SOL_SIGN_TRANSACTION_REQUEST':
+        console.log('Forwarding sign transaction request to background', event.data);
+        try {
+          const response = await chrome.runtime.sendMessage({
+            type: 'SIGN_TRANSACTION',
+            transaction: event.data.transaction,
+            origin: window.location.origin
+          });
+          
+          console.log('Received sign transaction response:', response);
+          
+          if (response && response.approved && response.signedTx) {
+            // Kiểm tra và chuyển đổi transaction
+            try {
+              const decodedTx = Buffer.from(response.signedTx, 'base64');
+              const signedTransaction = Transaction.from(decodedTx);
+              console.log('Decoded signed transaction:', signedTransaction);
+              
+              window.postMessage({
+                type: 'SOL_SIGN_TRANSACTION_RESPONSE',
+                approved: true,
+                signedTx: response.signedTx
+              }, '*');
+            } catch (error) {
+              console.error('Error decoding transaction:', error);
+              throw new Error('Failed to decode signed transaction');
             }
-          }, 15000); // Giảm xuống 15 giây
+          } else {
+            throw new Error(response.error || 'Transaction signing failed');
+          }
+        } catch (error) {
+          console.error('Transaction signing failed:', error);
+          window.postMessage({
+            type: 'SOL_SIGN_TRANSACTION_RESPONSE',
+            approved: false,
+            error: error instanceof Error ? error.message : 'Transaction signing failed'
+          }, '*');
+        }
+        break;
 
-          chrome.runtime.sendMessage({
+      case 'SOL_SIGN_MESSAGE_REQUEST':
+        try {
+          console.log('Forwarding sign message request to background');
+          const response = await chrome.runtime.sendMessage({
             type: 'SIGN_MESSAGE',
             message: event.data.message,
             origin: window.location.origin
-          }, (response) => {
-            isResponseReceived = true;
-            if (timeoutId) clearTimeout(timeoutId);
-            
-            if (chrome.runtime.lastError) {
-              reject(chrome.runtime.lastError);
-              return;
-            }
-            resolve(response);
           });
-        });
 
-        const response = await messagePromise;
-        console.log('Got sign message response:', response);
-        
-        window.postMessage({
-          type: 'SOL_SIGN_MESSAGE_RESPONSE',
-          approved: response.approved,
-          signature: response.signature,
-          error: response.error
-        }, '*');
+          console.log('Received sign message response from background:', response);
+          
+          // Đảm bảo response được gửi ngay lập tức
+          window.postMessage({
+            type: 'SOL_SIGN_MESSAGE_RESPONSE',
+            approved: response.approved,
+            signature: response.signature,
+            error: response.error
+          }, '*');
 
-      } catch (error) {
-        console.error('Message sending failed:', error);
-        window.postMessage({
-          type: 'SOL_SIGN_MESSAGE_RESPONSE',
-          approved: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }, '*');
-      } finally {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
+        } catch (error) {
+          console.error('Message signing failed:', error);
+          window.postMessage({
+            type: 'SOL_SIGN_MESSAGE_RESPONSE',
+            approved: false,
+            error: error instanceof Error ? error.message : 'Failed to sign message'
+          }, '*');
         }
-      }
-      break;
+        break;
+    }
+  } catch (error) {
+    console.error('Error in content script:', error);
+    window.postMessage({
+      type: 'SOL_SIGN_TRANSACTION_RESPONSE',
+      approved: false,
+      error: error instanceof Error ? error.message : 'Transaction signing failed'
+    }, '*');
   }
 });
 
 // Lắng nghe message từ background
-chrome.runtime.onMessage.addListener((message: WalletResponse, sender, sendResponse) => {
-  try {
-    console.log('Content script received message:', message);
-    
-    if (message.type === 'CONNECTION_RESPONSE') {
-      console.log('Forwarding CONNECTION_RESPONSE to provider:', message);
-      if (!message.publicKey) {
-        console.error('No publicKey in CONNECTION_RESPONSE');
-      }
-      window.postMessage({
-        type: 'SOL_CONNECT_RESPONSE',
-        approved: message.approved,
-        publicKey: message.publicKey,
-        error: message.error || (!message.publicKey && message.approved ? 'No public key received' : undefined)
-      } as WalletResponse, '*');
-    }
-    sendResponse(); // Gửi response ngay lập tức
-  } catch (error) {
-    console.error('Error handling message:', error);
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('Content script received message from background:', message);
+  
+  if (message.type === 'SIGN_TRANSACTION_RESPONSE') {
+    window.postMessage({
+      type: 'SOL_SIGN_TRANSACTION_RESPONSE',
+      approved: message.approved,
+      signedTx: message.signedTx,
+      error: message.error
+    }, '*');
   }
+  
+  // Gửi response ngay lập tức
+  sendResponse({ received: true });
+  return false;
 });
 
 // Inject provider script
@@ -237,3 +219,8 @@ script.onload = () => {
   script.remove();
   window.dispatchEvent(new Event('solana#initialized'));
 };
+
+// Thêm polyfill cho Buffer
+if (typeof window !== 'undefined') {
+  window.Buffer = window.Buffer || require('buffer').Buffer;
+}

@@ -1,173 +1,254 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Test Solana Wallet Connection</title>
-    <script src="https://bundle.run/buffer@6.0.3"></script>
+    <title>Wallet Test</title>
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <!-- Thêm Ant Design CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/antd/4.24.15/antd.min.css">
+    <!-- Thêm Ant Design và React -->
+    <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/antd/4.24.15/antd.min.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
+        .container {
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
         }
-        .card {
-            border: 1px solid #ddd;
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin: 24px 0;
+        }
+        .result-card {
+            margin-top: 24px;
+        }
+        .transaction-form {
+            margin-top: 24px;
             padding: 20px;
+            border: 1px solid #f0f0f0;
             border-radius: 8px;
-            margin-bottom: 20px;
-        }
-        button {
-            background: #1a237e;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 5px;
-        }
-        button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        .success {
-            color: green;
-            background: #e8f5e9;
-            padding: 10px;
-            border-radius: 4px;
-            margin: 10px 0;
-        }
-        .error {
-            color: red;
-            background: #ffebee;
-            padding: 10px;
-            border-radius: 4px;
-            margin: 10px 0;
-        }
-        #wallet-info {
-            word-break: break-all;
         }
     </style>
 </head>
 <body>
-    <h1>Test Solana Wallet Connection</h1>
-
-    <div class="card">
-        <h2>Trạng thái ví</h2>
-        <div id="wallet-info">Chưa kết nối</div>
-        <button id="connect-btn">Kết nối ví</button>
-        <button id="disconnect-btn" disabled>Ngắt kết nối</button>
-    </div>
-
-    <div class="card">
-        <h2>Test Giao dịch</h2>
-        <div>
-            <button id="sign-msg-btn" disabled>Ký tin nhắn test</button>
-            <button id="sign-tx-btn" disabled>Ký giao dịch test</button>
-        </div>
-        <div id="tx-result"></div>
+    <div class="container">
+        <div id="app"></div>
     </div>
 
     <script>
-        const connectBtn = document.getElementById('connect-btn');
-        const disconnectBtn = document.getElementById('disconnect-btn');
-        const signMsgBtn = document.getElementById('sign-msg-btn');
-        const signTxBtn = document.getElementById('sign-tx-btn');
-        const walletInfo = document.getElementById('wallet-info');
-        const txResult = document.getElementById('tx-result');
+        const { Button, Card, Typography, message, Space, Input, Form } = antd;
+        const { Title, Text } = Typography;
 
-        let checkWalletInterval;
-        let checkWalletTimeout;
+        const App = () => {
+            const [wallet, setWallet] = React.useState(null);
+            const [publicKey, setPublicKey] = React.useState(null);
+            const [loading, setLoading] = React.useState({
+                connect: false,
+                message: false,
+                transaction: false
+            });
+            const [form] = Form.useForm();
 
-        function waitForWallet() {
-            if (window.solana) {
-                clearInterval(checkWalletInterval);
-                clearTimeout(checkWalletTimeout);
-                checkWallet();
-            }
-        }
-
-        // Kiểm tra mỗi 100ms
-        checkWalletInterval = setInterval(waitForWallet, 100);
-
-        // Timeout sau 10 giây
-        checkWalletTimeout = setTimeout(() => {
-            if (checkWalletInterval) {
-                clearInterval(checkWalletInterval);
-                showResult('Không thể tìm thấy ví sau 10 giây', true);
-            }
-        }, 10000);
-
-        // Thêm event listener cho solana#initialized
-        window.addEventListener('solana#initialized', () => {
-            if (window.solana) {
-                clearInterval(checkWalletInterval);
-                clearTimeout(checkWalletTimeout);
-                checkWallet();
-            }
-        });
-
-        function showResult(message, isError = false) {
-            const div = document.createElement('div');
-            div.textContent = message;
-            div.className = isError ? 'error' : 'success';
-            txResult.prepend(div);
-        }
-
-        function updateButtons(connected) {
-            connectBtn.disabled = connected;
-            disconnectBtn.disabled = !connected;
-            signMsgBtn.disabled = !connected;
-            signTxBtn.disabled = !connected;
-        }
-
-        async function checkWallet() {
-            if (window.solana) {
-                if (window.solana.publicKey) {
-                    walletInfo.textContent = `Đã kết nối: ${window.solana.publicKey.toString()}`;
-                    updateButtons(true);
-                } else {
-                    walletInfo.textContent = 'Đã tìm thấy ví nhưng chưa kết nối';
-                    updateButtons(false);
+            const connectWallet = async () => {
+                setLoading(prev => ({ ...prev, connect: true }));
+                try {
+                    const solanaWallet = window.solana;
+                    const resp = await solanaWallet.connect();
+                    setWallet(solanaWallet);
+                    setPublicKey(resp.publicKey.toString());
+                    message.success('Wallet connected successfully!');
+                } catch (err) {
+                    console.error('Connection error:', err);
+                    message.error(`Connection error: ${err.message}`);
                 }
-            } else {
-                walletInfo.textContent = 'Không tìm thấy ví Solana';
-                updateButtons(false);
-            }
-        }
+                setLoading(prev => ({ ...prev, connect: false }));
+            };
 
-        connectBtn.addEventListener('click', async () => {
-            try {
-                const resp = await window.solana.connect();
-                if (resp && resp.publicKey) {
-                    walletInfo.textContent = `Đã kết nối: ${resp.publicKey}`;
-                    updateButtons(true);
-                    showResult('Kết nối thành công!');
+            const signMessage = async () => {
+                setLoading(prev => ({ ...prev, message: true }));
+                try {
+                    const messageBytes = new TextEncoder().encode('Test Message Signing');
+                    const signedMessage = await wallet.signMessage(messageBytes);
+                    console.log('Message signed:', signedMessage);
+                    message.success('Message signed successfully!');
+                } catch (err) {
+                    console.error('Signing error:', err);
+                    message.error(`Signing error: ${err.message}`);
                 }
-            } catch (err) {
-                showResult(`Lỗi kết nối: ${err.message}`, true);
-            }
-        });
+                setLoading(prev => ({ ...prev, message: false }));
+            };
 
-        disconnectBtn.addEventListener('click', async () => {
-            try {
-                await window.solana.disconnect();
-                walletInfo.textContent = 'Đã ngắt kết nối';
-                updateButtons(false);
-                showResult('Đã ngắt kết nối');
-            } catch (err) {
-                showResult(`Lỗi ngắt kết nối: ${err.message}`, true);
-            }
-        });
+            const signTransaction = async (values) => {
+                setLoading(prev => ({ ...prev, transaction: true }));
+                try {
+                    if (!wallet || !publicKey) {
+                        throw new Error('Please connect wallet first');
+                    }
 
-        signMsgBtn.addEventListener('click', async () => {
-            try {
-                const message = new TextEncoder().encode('Test Message Signing');
-                const signedMessage = await window.solana.signMessage(message);
-                showResult(`Đã ký tin nhắn thành công! Signature: ${Array.from(signedMessage.signature).map(b => b.toString(16).padStart(2, '0')).join('')}`);
-            } catch (err) {
-                showResult(`Lỗi ký tin nhắn: ${err.message}`, true);
-            }
-        });
+                    const connection = new solanaWeb3.Connection(
+                        solanaWeb3.clusterApiUrl('devnet'),
+                        'confirmed'
+                    );
+
+                    // Kiểm tra số dư
+                    const balance = await connection.getBalance(new solanaWeb3.PublicKey(publicKey));
+                    const amountInLamports = Math.floor(values.amount * solanaWeb3.LAMPORTS_PER_SOL);
+                    
+                    if (balance < amountInLamports) {
+                        throw new Error(`Insufficient balance. You have ${balance / solanaWeb3.LAMPORTS_PER_SOL} SOL but trying to send ${values.amount} SOL`);
+                    }
+
+                    // Tạo transaction
+                    const transaction = new solanaWeb3.Transaction();
+                    const toPublicKey = new solanaWeb3.PublicKey(values.recipient);
+
+                    console.log('Creating transaction with params:', {
+                        from: publicKey,
+                        to: values.recipient,
+                        amount: values.amount
+                    });
+
+                    transaction.add(
+                        solanaWeb3.SystemProgram.transfer({
+                            fromPubkey: new solanaWeb3.PublicKey(publicKey),
+                            toPubkey: toPublicKey,
+                            lamports: amountInLamports
+                        })
+                    );
+
+                    // Lấy blockhash mới nhất
+                    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+                    transaction.recentBlockhash = blockhash;
+                    transaction.lastValidBlockHeight = lastValidBlockHeight;
+                    transaction.feePayer = new solanaWeb3.PublicKey(publicKey);
+
+                    console.log('Transaction before signing:', {
+                        blockhash: transaction.recentBlockhash,
+                        feePayer: transaction.feePayer.toBase58(),
+                        instructions: transaction.instructions
+                    });
+
+                    // Ký và gửi transaction
+                    const signedTransaction = await wallet.signTransaction(transaction);
+                    console.log('Signed transaction:', {
+                        signatures: signedTransaction.signatures.map(sig => ({
+                            publicKey: sig.publicKey.toBase58(),
+                            signature: sig.signature ? Buffer.from(sig.signature).toString('base64') : null
+                        }))
+                    });
+
+                    // Gửi transaction
+                    const rawTransaction = signedTransaction.serialize();
+                    const signature = await connection.sendRawTransaction(rawTransaction, {
+                        skipPreflight: false,
+                        preflightCommitment: 'confirmed',
+                        maxRetries: 3
+                    });
+
+                    // Đợi confirmation
+                    const confirmation = await connection.confirmTransaction({
+                        signature,
+                        blockhash,
+                        lastValidBlockHeight
+                    });
+
+                    if (confirmation.value.err) {
+                        throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+                    }
+
+                    console.log('Transaction confirmed:', confirmation);
+                    message.success(`Transaction completed! Signature: ${signature}`);
+
+                } catch (err) {
+                    console.error('Transaction error:', err);
+                    message.error(`Transaction error: ${err.message}`);
+                }
+                setLoading(prev => ({ ...prev, transaction: false }));
+            };
+
+            return React.createElement(
+                React.Fragment,
+                null,
+                React.createElement(Title, { level: 2 }, "Solana Wallet Test"),
+                React.createElement(
+                    Space,
+                    { direction: "vertical", size: "large", style: { width: '100%' } },
+                    React.createElement(Card, { title: "Wallet Status" },
+                        publicKey 
+                            ? React.createElement(Text, { type: "success" }, `Connected: ${publicKey}`)
+                            : React.createElement(Text, { type: "warning" }, "Not Connected")
+                    ),
+                    React.createElement(
+                        "div",
+                        { className: "button-group" },
+                        React.createElement(Button, {
+                            type: "primary",
+                            onClick: connectWallet,
+                            loading: loading.connect,
+                            block: true
+                        }, "Connect Wallet"),
+                        React.createElement(Button, {
+                            onClick: signMessage,
+                            disabled: !wallet,
+                            loading: loading.message,
+                            block: true
+                        }, "Sign Message")
+                    ),
+                    React.createElement(
+                        Card,
+                        { title: "Create Transaction", className: "transaction-form" },
+                        React.createElement(
+                            Form,
+                            {
+                                form: form,
+                                onFinish: signTransaction,
+                                layout: "vertical"
+                            },
+                            React.createElement(
+                                Form.Item,
+                                {
+                                    name: "recipient",
+                                    label: "Recipient Address",
+                                    rules: [{ required: true, message: 'Please input recipient address!' }]
+                                },
+                                React.createElement(Input, { placeholder: "Enter recipient's wallet address" })
+                            ),
+                            React.createElement(
+                                Form.Item,
+                                {
+                                    name: "amount",
+                                    label: "Amount (SOL)",
+                                    rules: [{ required: true, message: 'Please input amount!' }]
+                                },
+                                React.createElement(Input, {
+                                    type: "number",
+                                    step: "0.000000001",
+                                    placeholder: "Enter amount in SOL"
+                                })
+                            ),
+                            React.createElement(
+                                Form.Item,
+                                null,
+                                React.createElement(Button, {
+                                    type: "primary",
+                                    htmlType: "submit",
+                                    loading: loading.transaction,
+                                    disabled: !wallet,
+                                    block: true
+                                }, "Sign Transaction")
+                            )
+                        )
+                    )
+                )
+            );
+        };
+
+        ReactDOM.render(
+            React.createElement(App),
+            document.getElementById('app')
+        );
     </script>
 </body>
 </html>

@@ -18,6 +18,14 @@ interface WalletResponse {
   error?: string | null;
 }
 
+// Định nghĩa interface cho popup response
+interface PopupResponse {
+  type: string;
+  approved: boolean;
+  signedTx?: string;
+  error?: string;
+}
+
 // Thành:
 const walletService = WalletService.getInstance();
 const connectionService = ConnectionService.getInstance();
@@ -28,36 +36,53 @@ const pendingRequests = new Map<number, {
   origin: string;
   message?: any;
   transaction?: any;
+  timestamp?: number;
   sendResponse: (response: any) => void;
 }>();
+
+// Thêm hàm kiểm tra tab tồn tại
+async function isTabActive(tabId: number): Promise<boolean> {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return tab && !tab.discarded;
+  } catch {
+    return false;
+  }
+}
 
 // Lắng nghe message
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Background received message:', message);
 
   if (message.type === 'CONNECT_REQUEST') {
-    // Xử lý đồng bộ
     handleConnectRequest(message, sender)
       .then(response => {
         try {
-          sendResponse(response);
+          if (!chrome.runtime.lastError) {
+            sendResponse(response);
+          }
         } catch (error) {
           console.error('Error sending response:', error);
         }
       })
       .catch(error => {
         console.error('Error handling connect request:', error);
-        sendResponse({
-          approved: false,
-          error: error.message || 'Connection failed'
-        });
+        try {
+          if (!chrome.runtime.lastError) {
+            sendResponse({
+              approved: false,
+              error: error.message || 'Connection failed'
+            });
+          }
+        } catch (err) {
+          console.error('Error sending error response:', err);
+        }
       });
-    return true; // Giữ kênh message mở
+    return true;
   }
 
   if (message.type === 'CONNECTION_RESPONSE') {
-    // Xử lý đồng bộ
-    handleConnectionResponse(message);
+    handleConnectionResponse(message).catch(console.error);
     return false;
   }
 
@@ -70,25 +95,112 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const popup = sender.tab?.windowId;
     if (typeof popup === 'number') {
       const pendingRequest = pendingRequests.get(popup);
-      
       if (pendingRequest) {
-        console.log('Processing sign message response:', message);
-        pendingRequest.sendResponse({
-          approved: message.approved,
-          signature: message.signature,
-          error: message.error
-        });
-        pendingRequests.delete(popup);
-      } else {
-        console.error('No pending request found for popup:', popup);
+        try {
+          console.log('Processing sign message response:', message);
+          if (!chrome.runtime.lastError) {
+            pendingRequest.sendResponse({
+              approved: message.approved,
+              signature: message.signature,
+              error: message.error
+            });
+          }
+          pendingRequests.delete(popup);
+        } catch (error) {
+          console.error('Error sending sign message response:', error);
+        }
       }
-    } else {
-      console.error('Invalid popup window ID');
     }
     return false;
   }
 
-  return false;
+  if (message.type === 'SIGN_TRANSACTION') {
+    let popupId: number | null = null;
+
+    // Mở popup để xác nhận transaction
+    chrome.windows.create({
+      url: 'popup.html',
+      type: 'popup',
+      width: 400,
+      height: 600
+    }, async (popupWindow) => {
+      try {
+        if (!popupWindow?.id) {
+          throw new Error('Failed to create popup window');
+        }
+
+        popupId = popupWindow.id;
+
+        // Lưu thông tin transaction
+        await chrome.storage.local.set({
+          pendingTransaction: message.transaction,
+          transactionOrigin: message.origin
+        });
+
+        // Chỉ gửi response một lần khi nhận được kết quả từ popup
+        const handlePopupMessage = async (response: PopupResponse) => {
+          if (response.type === 'SIGN_TRANSACTION_RESPONSE') {
+            // Gửi response về content script
+            if (sender.tab?.id) {
+              await chrome.tabs.sendMessage(sender.tab.id, {
+                type: 'SIGN_TRANSACTION_RESPONSE',
+                approved: response.approved,
+                signedTx: response.signedTx,
+                error: response.error
+              });
+            }
+
+            // Xóa dữ liệu và đóng popup
+            await chrome.storage.local.remove(['pendingTransaction', 'transactionOrigin']);
+            if (popupId) {
+              await chrome.windows.remove(popupId);
+            }
+
+            // Xóa listener
+            chrome.runtime.onMessage.removeListener(handlePopupMessage);
+          }
+        };
+
+        chrome.runtime.onMessage.addListener(handlePopupMessage);
+
+      } catch (error: unknown) {
+        console.error('Error in background:', error);
+        if (sender.tab?.id) {
+          chrome.tabs.sendMessage(sender.tab.id, {
+            type: 'SIGN_TRANSACTION_RESPONSE',
+            approved: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+    });
+
+    return true; // Giữ kết nối cho async response
+  }
+
+  return true;
+});
+
+// Lắng nghe khi popup được mở
+chrome.runtime.onConnect.addListener((port) => {
+  console.log('Popup connected');
+  
+  if (port.name === 'popup') {
+    port.onMessage.addListener((msg) => {
+      if (msg.type === 'POPUP_READY') {
+        // Gửi transaction data cho popup
+        chrome.storage.local.get(['pendingTransaction', 'transactionOrigin'], (data) => {
+          if (data.pendingTransaction && data.transactionOrigin) {
+            port.postMessage({
+              type: 'SHOW_TRANSACTION',
+              transaction: data.pendingTransaction,
+              origin: data.transactionOrigin
+            });
+          }
+        });
+      }
+    });
+  }
 });
 
 // Hàm xử lý yêu cầu kết nối
@@ -176,15 +288,21 @@ async function handleSignMessageRequest(message: any, sendResponse: (response: a
 }
 
 // Sửa lại hàm xử lý connection response
-function handleConnectionResponse(message: any) {
+async function handleConnectionResponse(message: any) {
   try {
-    chrome.tabs.query({}, tabs => {
-      tabs.forEach(tab => {
-        if (tab.id) {
-          chrome.tabs.sendMessage(tab.id, message);
+    // Lấy tất cả các tab
+    const tabs = await chrome.tabs.query({});
+    
+    // Gửi response đến từng tab một cách an toàn
+    for (const tab of tabs) {
+      if (tab.id && await isTabActive(tab.id)) {
+        try {
+          await chrome.tabs.sendMessage(tab.id, message);
+        } catch (error) {
+          console.log(`Failed to send message to tab ${tab.id}:`, error);
         }
-      });
-    });
+      }
+    }
   } catch (error) {
     console.error('Error broadcasting response:', error);
   }

@@ -92,14 +92,108 @@ h1 {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: white;
+  width: 375px;
+  height: 600px;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: none;
+  justify-content: center;
+  align-items: center;
   z-index: 1000;
 }
 
 .modal-content {
+  background-color: white;
   padding: 20px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 340px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #1a237e;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+}
+
+.site-info {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 10px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.site-info img {
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
+}
+
+.tx-details {
+  margin-bottom: 20px;
+}
+
+.tx-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.tx-row label {
+  color: #666;
+  font-size: 14px;
+}
+
+.tx-value {
+  font-family: monospace;
+  font-size: 14px;
+  word-break: break-all;
+  max-width: 200px;
+  text-align: right;
+}
+
+.button-group {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* Sử dụng lại các styles cho buttons từ file hiện có */
+.button-group .primary-button {
+  background-color: #1a237e;
+}
+
+.button-group .secondary-button {
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+.button-group .primary-button:hover {
+  background-color: #283593;
+}
+
+.button-group .secondary-button:hover {
+  background-color: #bdbdbd;
 }
 
 input {
@@ -355,12 +449,6 @@ input {
   word-break: break-all;
 }
 
-.button-group {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 20px;
-}
-
 .site-icon {
   width: 48px;
   height: 48px;
@@ -391,41 +479,6 @@ input {
 /* Style cho transaction modal */
 .transaction-info {
   padding: 20px;
-}
-
-.site-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.tx-details {
-  background: #f5f5f5;
-  border-radius: 8px;
-  padding: 16px;
-}
-
-.tx-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
-}
-
-.tx-row:last-child {
-  border-bottom: none;
-}
-
-.tx-label {
-  color: #666;
-  font-size: 14px;
-}
-
-.tx-value {
-  font-weight: 500;
-  font-size: 14px;
-  word-break: break-all;
 }
 
 #create-wallet {

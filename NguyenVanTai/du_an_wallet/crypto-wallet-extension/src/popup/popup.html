@@ -228,41 +228,36 @@
 
     <div id="sign-transaction-modal" class="modal" style="display: none;">
       <div class="modal-content">
-        <div class="header">
-          <h2>Xác nhận giao dịch</h2>
+        <div class="modal-header">
+          <h2>Sign Transaction</h2>
+          <button id="close-modal" class="close-button">&times;</button>
         </div>
+        
+        <div class="transaction-info">
+          <div class="site-info">
+            <img id="tx-site-icon" src="/images/icon-34.png" alt="Site Icon">
+            <span id="tx-site-origin">Unknown</span>
+          </div>
 
-        <div class="scrollable-content">
-          <div class="transaction-info">
-            <div class="site-info">
-              <img id="tx-site-icon" class="site-icon" src="" alt="Site icon">
-              <span id="tx-site-origin"></span>
+          <div class="tx-details">
+            <div class="tx-row">
+              <label>From:</label>
+              <span id="tx-from" class="tx-value">Loading...</span>
             </div>
-
-            <div class="tx-details">
-              <div class="tx-row">
-                <span class="tx-label">Từ:</span>
-                <span id="tx-from" class="tx-value"></span>
-              </div>
-              <div class="tx-row">
-                <span class="tx-label">Đến:</span>
-                <span id="tx-to" class="tx-value"></span>
-              </div>
-              <div class="tx-row">
-                <span class="tx-label">Số lượng:</span>
-                <span id="tx-amount" class="tx-value"></span>
-              </div>
-              <div class="tx-row">
-                <span class="tx-label">Phí giao dịch:</span>
-                <span id="tx-fee" class="tx-value"></span>
-              </div>
+            <div class="tx-row">
+              <label>To:</label>
+              <span id="tx-to" class="tx-value">Loading...</span>
+            </div>
+            <div class="tx-row">
+              <label>Amount:</label>
+              <span id="tx-amount" class="tx-value">Loading...</span>
             </div>
           </div>
         </div>
 
-        <div class="step-buttons">
-          <button id="reject-transaction" class="secondary-button">Từ chối</button>
-          <button id="approve-transaction" class="primary-button">Ký và Gửi</button>
+        <div class="button-group">
+          <button id="reject-transaction-btn" class="secondary-button">Reject</button>
+          <button id="approve-transaction-btn" class="primary-button">Approve</button>
         </div>
       </div>
     </div>

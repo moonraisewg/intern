@@ -31045,39 +31045,6 @@ function setupEventHandlers() {
 
 "use strict";
 
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -31089,9 +31056,124 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const wallet_1 = __webpack_require__(736);
-const web3 = __importStar(__webpack_require__(474));
 const connection_1 = __webpack_require__(781);
 const EventHandlers_1 = __webpack_require__(828);
+const web3_js_1 = __webpack_require__(474);
+let isProcessing = false;
+function displayTransactionDetails() {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a;
+        try {
+            const data = yield chrome.storage.local.get(['pendingTransaction']);
+            const transaction = data.pendingTransaction;
+            if (!transaction) {
+                throw new Error('No transaction data found');
+            }
+            console.log('Raw transaction data:', transaction);
+            // Tìm instruction chuyển SOL (System Program)
+            const transferInstruction = transaction.instructions.find((inst) => inst.programId === '11111111111111111111111111111111');
+            if (!transferInstruction) {
+                throw new Error('Not a transfer transaction');
+            }
+            // Tìm người nhận (địa chỉ đích trong instruction)
+            const recipient = (_a = transferInstruction.keys.find((key) => key.isWritable && !key.isSigner)) === null || _a === void 0 ? void 0 : _a.pubkey;
+            // Decode số lượng SOL từ data của instruction
+            const dataBuffer = Buffer.from(transferInstruction.data, 'base64');
+            const amount = Number(dataBuffer.readBigUInt64LE(0)) / web3_js_1.LAMPORTS_PER_SOL;
+            // Format địa chỉ để dễ đọc
+            const formatAddress = (address) => {
+                if (!address)
+                    return 'Unknown';
+                return `${address.slice(0, 4)}...${address.slice(-4)}`;
+            };
+            // Format số lượng SOL
+            const formatAmount = (sol) => {
+                return `${sol.toFixed(9)} SOL`;
+            };
+            // Cập nhật UI
+            const elements = {
+                from: document.getElementById('from-address'),
+                to: document.getElementById('to-address'),
+                amount: document.getElementById('amount'),
+                fee: document.getElementById('fee'),
+                program: document.getElementById('program-id'),
+                total: document.getElementById('total-amount')
+            };
+            if (elements.from) {
+                elements.from.textContent = formatAddress(transaction.feePayer);
+                elements.from.title = transaction.feePayer; // Hiển thị địa chỉ đầy đủ khi hover
+            }
+            if (elements.to) {
+                elements.to.textContent = formatAddress(recipient);
+                elements.to.title = recipient; // Hiển thị địa chỉ đầy đủ khi hover
+            }
+            if (elements.amount) {
+                elements.amount.textContent = formatAmount(amount);
+            }
+            if (elements.fee) {
+                elements.fee.textContent = '0.000005 SOL'; // Phí cố định cho giao dịch đơn giản
+            }
+            if (elements.program) {
+                elements.program.textContent = 'System Program (Transfer)';
+            }
+            if (elements.total) {
+                elements.total.textContent = formatAmount(amount + 0.000005); // Tổng = số lượng + phí
+            }
+            // Hiển thị container khi đã load xong dữ liệu
+            const container = document.getElementById('transaction-details');
+            if (container) {
+                container.style.display = 'block';
+            }
+        }
+        catch (error) {
+            console.error('Error displaying transaction details:', error);
+            const errorElement = document.getElementById('transaction-error');
+            if (errorElement) {
+                errorElement.textContent = error instanceof Error ? error.message : 'Failed to load transaction details';
+            }
+        }
+    });
+}
+// Thêm hàm để format địa chỉ
+function formatAddress(address) {
+    if (!address)
+        return 'Unknown';
+    return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
+// Thêm hàm để format số lượng SOL
+function formatAmount(lamports) {
+    return (lamports / web3_js_1.LAMPORTS_PER_SOL).toFixed(9) + ' SOL';
+}
+function handleTransactionSign() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const data = yield chrome.storage.local.get(['pendingTransaction']);
+            const transactionData = data.pendingTransaction;
+            if (!transactionData) {
+                throw new Error('No pending transaction found');
+            }
+            // Khôi phục transaction từ dữ liệu
+            const transaction = web3_js_1.Transaction.from(Buffer.from(transactionData.serialized, 'base64'));
+            // Ký transaction
+            const walletService = wallet_1.WalletService.getInstance();
+            const signedTx = yield walletService.signTransaction(transaction);
+            // Gửi response
+            chrome.runtime.sendMessage({
+                type: 'SIGN_TRANSACTION_RESPONSE',
+                approved: true,
+                signedTx: signedTx.serialize().toString('base64')
+            });
+        }
+        catch (error) {
+            console.error('Error signing transaction:', error);
+            chrome.runtime.sendMessage({
+                type: 'SIGN_TRANSACTION_RESPONSE',
+                approved: false,
+                error: error instanceof Error ? error.message : 'Failed to sign transaction'
+            });
+        }
+    });
+}
 document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, void 0, function* () {
     const walletService = wallet_1.WalletService.getInstance();
     const connectionService = connection_1.ConnectionService.getInstance();
@@ -31121,11 +31203,11 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
     const txSiteIcon = document.getElementById('tx-site-icon');
     const txSiteOrigin = document.getElementById('tx-site-origin');
     const txFrom = document.getElementById('tx-from');
-    const txTo = document.getElementById('tx-to');
-    const txAmount = document.getElementById('tx-amount');
+    const txToInput = document.getElementById('tx-to-input');
+    const txAmountInput = document.getElementById('tx-amount-input');
     const txFee = document.getElementById('tx-fee');
-    const approveTransactionBtn = document.getElementById('approve-transaction');
-    const rejectTransactionBtn = document.getElementById('reject-transaction');
+    const approveTransactionBtn = document.getElementById('approve-transaction-btn');
+    const rejectTransactionBtn = document.getElementById('reject-transaction-btn');
     // Kiểm tra các elements cần thiết
     if (!walletInfo || !createWallet || !connectModal || !siteOrigin || !walletAddress) {
         console.error('Required elements not found');
@@ -31133,7 +31215,38 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
     }
     // Xử lý hash URL để hiển thị đúng màn hình
     const hash = window.location.hash;
-    if (hash.startsWith('#connect')) {
+    if (hash.startsWith('#sign-transaction')) {
+        try {
+            const params = new URLSearchParams(hash.substring(hash.indexOf('?')));
+            const origin = params.get('origin');
+            const transactionData = params.get('transaction');
+            if (origin && transactionData) {
+                console.log('Raw transaction data:', transactionData);
+                // Parse transaction data từ mảng số
+                const transactionArray = JSON.parse(decodeURIComponent(transactionData));
+                console.log('Parsed transaction array:', transactionArray);
+                // Tạo Uint8Array từ mảng số
+                const transactionUint8 = new Uint8Array(transactionArray);
+                console.log('Transaction Uint8Array:', transactionUint8);
+                // Tạo Transaction object
+                const transaction = web3_js_1.Transaction.from(transactionUint8);
+                console.log('Created Transaction object:', transaction);
+                // Ẩn các màn hình khác
+                if (walletInfo)
+                    walletInfo.style.display = 'none';
+                if (createWallet)
+                    createWallet.style.display = 'none';
+                if (connectModal)
+                    connectModal.style.display = 'none';
+                // Hiển thị modal giao dịch
+                showSignTransactionModal(transaction, decodeURIComponent(origin));
+            }
+        }
+        catch (error) {
+            console.error('Error processing transaction:', error);
+        }
+    }
+    else if (hash.startsWith('#connect')) {
         const params = new URLSearchParams(hash.substring(hash.indexOf('?')));
         const origin = params.get('origin');
         if (origin) {
@@ -31221,18 +31334,27 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
                     messageContent.textContent = new TextDecoder().decode(messageBytes);
                     // Xử lý approve
                     approveSignBtn === null || approveSignBtn === void 0 ? void 0 : approveSignBtn.addEventListener('click', () => __awaiter(void 0, void 0, void 0, function* () {
+                        if (isProcessing)
+                            return;
+                        isProcessing = true;
                         try {
                             console.log('User approved signing');
                             const signature = yield walletService.signMessage(messageBytes);
                             console.log('Message signed successfully:', {
                                 signature: Array.from(signature)
                             });
+                            // Gửi response và đợi confirmation
                             chrome.runtime.sendMessage({
                                 type: 'SIGN_MESSAGE_RESPONSE',
                                 approved: true,
                                 signature: Array.from(signature)
+                            }, () => {
+                                if (chrome.runtime.lastError) {
+                                    console.log('Message port closed:', chrome.runtime.lastError.message);
+                                }
+                                // Đóng popup sau khi xử lý error
+                                setTimeout(() => window.close(), 100);
                             });
-                            window.close();
                         }
                         catch (error) {
                             console.error('Error signing message:', error);
@@ -31240,19 +31362,33 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
                                 type: 'SIGN_MESSAGE_RESPONSE',
                                 approved: false,
                                 error: error instanceof Error ? error.message : 'Failed to sign message'
+                            }, () => {
+                                if (chrome.runtime.lastError) {
+                                    console.log('Message port closed:', chrome.runtime.lastError.message);
+                                }
+                                setTimeout(() => window.close(), 100);
                             });
-                            window.close();
+                        }
+                        finally {
+                            isProcessing = false;
                         }
                     }));
                     // Xử lý reject
                     rejectSignBtn === null || rejectSignBtn === void 0 ? void 0 : rejectSignBtn.addEventListener('click', () => {
+                        if (isProcessing)
+                            return;
+                        isProcessing = true;
                         console.log('User rejected signing');
                         chrome.runtime.sendMessage({
                             type: 'SIGN_MESSAGE_RESPONSE',
                             approved: false,
                             error: 'User rejected message signing'
+                        }, () => {
+                            if (chrome.runtime.lastError) {
+                                console.log('Message port closed:', chrome.runtime.lastError.message);
+                            }
+                            setTimeout(() => window.close(), 100);
                         });
-                        window.close();
                     });
                 }
                 catch (error) {
@@ -31520,14 +31656,14 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
             alert('Không thể hiển thị cụm từ khôi phục. Vui lòng thử lại.');
         }
     }));
-    // Xử lý yêu cầu kết nối
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-        var _a, _b;
-        if (message.type === 'CONNECT_REQUEST') {
-            showConnectModal(message.origin, (_a = sender.tab) === null || _a === void 0 ? void 0 : _a.favIconUrl);
-        }
-        else if (message.type === 'SIGN_TRANSACTION') {
-            showSignTransactionModal(message.transaction, message.origin, (_b = sender.tab) === null || _b === void 0 ? void 0 : _b.favIconUrl);
+    // Kết nối với background
+    const port = chrome.runtime.connect({ name: 'popup' });
+    // Thông báo popup đã sẵn sàng
+    port.postMessage({ type: 'POPUP_READY' });
+    // Lắng nghe message từ background
+    port.onMessage.addListener((msg) => {
+        if (msg.type === 'SHOW_TRANSACTION') {
+            showSignTransactionModal(msg.transaction, msg.origin);
         }
     });
     function showConnectModal(origin, iconUrl) {
@@ -31554,44 +31690,99 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
             });
         }
     }
-    function showSignTransactionModal(transaction, origin, iconUrl) {
-        if (signTransactionModal && txSiteOrigin && txSiteIcon) {
-            txSiteOrigin.textContent = origin;
-            txSiteIcon.src = iconUrl || 'default-icon.png';
-            // Hiển thị thông tin giao dịch
-            if (txFrom)
-                txFrom.textContent = transaction.from;
-            if (txTo)
-                txTo.textContent = transaction.to;
-            if (txAmount)
-                txAmount.textContent = `${transaction.amount} SOL`;
-            if (txFee)
-                txFee.textContent = `${transaction.fee} SOL`;
-            signTransactionModal.style.display = 'flex';
-            approveTransactionBtn === null || approveTransactionBtn === void 0 ? void 0 : approveTransactionBtn.addEventListener('click', () => __awaiter(this, void 0, void 0, function* () {
-                try {
-                    const signedTx = yield walletService.signTransaction(transaction);
-                    chrome.runtime.sendMessage({
-                        type: 'TRANSACTION_RESPONSE',
-                        approved: true,
-                        signedTx,
-                        origin
-                    });
-                    signTransactionModal.style.display = 'none';
-                }
-                catch (error) {
-                    console.error('Error signing transaction:', error);
-                    alert('Không thể ký giao dịch. Vui lòng thử lại.');
-                }
-            }));
-            rejectTransactionBtn === null || rejectTransactionBtn === void 0 ? void 0 : rejectTransactionBtn.addEventListener('click', () => {
-                chrome.runtime.sendMessage({
-                    type: 'TRANSACTION_RESPONSE',
-                    approved: false,
-                    origin
-                });
+    function showSignTransactionModal(transaction, origin) {
+        const signTransactionModal = document.getElementById('sign-transaction-modal');
+        const txOrigin = document.getElementById('tx-site-origin');
+        const txFrom = document.getElementById('tx-from');
+        const txTo = document.getElementById('tx-to');
+        const txAmount = document.getElementById('tx-amount');
+        const approveTransactionBtn = document.getElementById('approve-transaction-btn');
+        const rejectTransactionBtn = document.getElementById('reject-transaction-btn');
+        const closeModalBtn = document.getElementById('close-modal');
+        // Xóa event listeners cũ
+        const cleanupListeners = () => {
+            approveTransactionBtn === null || approveTransactionBtn === void 0 ? void 0 : approveTransactionBtn.removeEventListener('click', handleApprove);
+            rejectTransactionBtn === null || rejectTransactionBtn === void 0 ? void 0 : rejectTransactionBtn.removeEventListener('click', handleReject);
+            closeModalBtn === null || closeModalBtn === void 0 ? void 0 : closeModalBtn.removeEventListener('click', closeModal);
+        };
+        // Đóng modal
+        const closeModal = () => {
+            if (signTransactionModal) {
                 signTransactionModal.style.display = 'none';
+            }
+            cleanupListeners();
+        };
+        // Xử lý approve transaction
+        const handleApprove = () => __awaiter(this, void 0, void 0, function* () {
+            try {
+                console.log('Handling approve with transaction:', transaction);
+                // Gọi trực tiếp hàm handleTransactionSign
+                yield handleTransactionSign();
+                console.log('Transaction signed successfully');
+            }
+            catch (error) {
+                console.error('Error approving transaction:', error);
+                chrome.runtime.sendMessage({
+                    type: 'SIGN_TRANSACTION_RESPONSE',
+                    approved: false,
+                    error: error instanceof Error ? error.message : 'Unknown error'
+                });
+            }
+            finally {
+                closeModal();
+            }
+        });
+        // Xử lý reject transaction
+        const handleReject = () => {
+            chrome.runtime.sendMessage({
+                type: 'SIGN_TRANSACTION_RESPONSE',
+                approved: false,
+                error: 'User rejected transaction'
             });
+            closeModal();
+        };
+        if (signTransactionModal && txOrigin && txFrom && txTo && txAmount) {
+            try {
+                cleanupListeners();
+                // Hiển thị thông tin từ transaction
+                txOrigin.textContent = origin || 'Unknown origin';
+                // Kiểm tra và hiển thị thông tin giao dịch
+                if (transaction && transaction.instructions && transaction.instructions.length > 0) {
+                    const instruction = transaction.instructions[0];
+                    if (instruction.keys && instruction.keys.length >= 2) {
+                        txFrom.textContent = instruction.keys[0].pubkey.toString();
+                        txTo.textContent = instruction.keys[1].pubkey.toString();
+                        // Sửa phần parse amount
+                        if (instruction.data && instruction.data instanceof Uint8Array && instruction.data.length >= 8) {
+                            try {
+                                const dataView = new DataView(instruction.data.buffer);
+                                const lamports = dataView.getBigUint64(4, true);
+                                txAmount.textContent = `${Number(lamports) / web3_js_1.LAMPORTS_PER_SOL} SOL`;
+                            }
+                            catch (e) {
+                                console.error('Error parsing amount:', e);
+                                txAmount.textContent = 'Unknown amount';
+                            }
+                        }
+                        else {
+                            txAmount.textContent = 'Unknown amount';
+                        }
+                    }
+                }
+                signTransactionModal.style.display = 'flex';
+                approveTransactionBtn === null || approveTransactionBtn === void 0 ? void 0 : approveTransactionBtn.addEventListener('click', handleApprove);
+                rejectTransactionBtn === null || rejectTransactionBtn === void 0 ? void 0 : rejectTransactionBtn.addEventListener('click', handleReject);
+                closeModalBtn === null || closeModalBtn === void 0 ? void 0 : closeModalBtn.addEventListener('click', closeModal);
+            }
+            catch (error) {
+                console.error('Error showing transaction modal:', error);
+                chrome.runtime.sendMessage({
+                    type: 'SIGN_TRANSACTION_RESPONSE',
+                    approved: false,
+                    error: error instanceof Error ? error.message : 'Failed to process transaction'
+                });
+                closeModal();
+            }
         }
     }
     // Thêm hàm update balance
@@ -31599,7 +31790,7 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const balance = yield walletService.getBalance();
-                const balanceInSOL = balance / web3.LAMPORTS_PER_SOL;
+                const balanceInSOL = balance / web3_js_1.LAMPORTS_PER_SOL;
                 if (walletBalance) {
                     walletBalance.textContent = `${balanceInSOL.toFixed(4)} SOL`;
                 }
@@ -31618,6 +31809,60 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
         updateBalance();
     });
     (0, EventHandlers_1.setupEventHandlers)();
+    // Thêm hàm để kiểm tra trạng thái popup
+    function initializePopup() {
+        return __awaiter(this, void 0, void 0, function* () {
+            console.log('Initializing popup...');
+            // Kiểm tra xem có transaction đang chờ không
+            chrome.storage.local.get(['pendingTransaction'], (result) => {
+                const transactionData = result.pendingTransaction;
+                if (!(transactionData === null || transactionData === void 0 ? void 0 : transactionData.serialized)) {
+                    console.error('Invalid transaction data:', transactionData);
+                    chrome.runtime.sendMessage({
+                        type: 'SIGN_TRANSACTION_RESPONSE',
+                        approved: false,
+                        error: 'Invalid transaction data format'
+                    });
+                    return;
+                }
+                try {
+                    const transactionBuffer = Buffer.from(transactionData.serialized, 'base64');
+                    const transaction = web3_js_1.Transaction.from(transactionBuffer);
+                    showSignTransactionModal(transaction, result.transactionOrigin);
+                }
+                catch (e) {
+                    console.error('Error parsing transaction:', e);
+                    chrome.runtime.sendMessage({
+                        type: 'SIGN_TRANSACTION_RESPONSE',
+                        approved: false,
+                        error: 'Invalid transaction format'
+                    });
+                }
+            });
+            // Kiểm tra các kết nối hiện tại
+            const connections = yield connectionService.getConnectedSites();
+            console.log('Current connections:', connections);
+        });
+    }
+    // Gọi hàm initialize khi popup mở
+    console.log('Popup loaded');
+    initializePopup();
+    // Thêm listener cho window load
+    window.addEventListener('load', () => {
+        console.log('Window loaded');
+        // Kiểm tra URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('transaction')) {
+            try {
+                const transaction = JSON.parse(urlParams.get('transaction') || '');
+                const origin = urlParams.get('origin') || 'Unknown';
+                showSignTransactionModal(transaction, origin);
+            }
+            catch (error) {
+                console.error('Error parsing transaction from URL:', error);
+            }
+        }
+    });
 }));
 
 
@@ -31628,6 +31873,39 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -31640,12 +31918,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ConnectionService = void 0;
 const wallet_1 = __webpack_require__(736);
+const web3 = __importStar(__webpack_require__(474));
 class ConnectionService {
     constructor() {
         this.connectedSites = [];
         this.popupWindow = null;
         this.handleConnectionRequest = this.handleConnectionRequest.bind(this);
         this.isConnected = this.isConnected.bind(this);
+        // Khởi tạo connection với mạng devnet
+        this.connection = new web3.Connection(web3.clusterApiUrl('devnet'), 'confirmed');
     }
     static getInstance() {
         if (!ConnectionService.instance) {
@@ -31741,13 +32022,32 @@ class ConnectionService {
     }
     getLatestBlockhash() {
         return __awaiter(this, void 0, void 0, function* () {
-            throw new Error("Method not implemented");
+            try {
+                const { blockhash } = yield this.connection.getLatestBlockhash();
+                return { blockhash };
+            }
+            catch (error) {
+                console.error('Error getting latest blockhash:', error);
+                throw error;
+            }
         });
     }
     getBalance(address) {
         return __awaiter(this, void 0, void 0, function* () {
-            throw new Error("Method not implemented");
+            try {
+                const publicKey = new web3.PublicKey(address);
+                const balance = yield this.connection.getBalance(publicKey);
+                return balance;
+            }
+            catch (error) {
+                console.error('Error getting balance:', error);
+                throw error;
+            }
         });
+    }
+    // Thêm phương thức để thay đổi mạng
+    setNetwork(network) {
+        this.connection = new web3.Connection(web3.clusterApiUrl(network), 'confirmed');
     }
 }
 exports.ConnectionService = ConnectionService;
@@ -31809,6 +32109,11 @@ const bip39 = __importStar(__webpack_require__(341));
 const english_1 = __webpack_require__(375);
 const nacl = __importStar(__webpack_require__(947));
 const connection_1 = __webpack_require__(781);
+const buffer_1 = __webpack_require__(287);
+// Thêm polyfill cho Buffer
+if (typeof window !== 'undefined') {
+    window.Buffer = buffer_1.Buffer;
+}
 class WalletService {
     constructor() {
         this.keypair = null;
@@ -31867,18 +32172,36 @@ class WalletService {
     }
     signTransaction(transaction) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!this.keypair) {
-                const data = yield chrome.storage.local.get(['secretKey']);
-                if (!data.secretKey) {
-                    throw new Error('No wallet found');
+            try {
+                // Lấy secret key từ storage nếu chưa có keypair
+                if (!this.keypair) {
+                    const data = yield chrome.storage.local.get(['secretKey']);
+                    if (!data.secretKey) {
+                        throw new Error('Không tìm thấy ví');
+                    }
+                    this.keypair = web3.Keypair.fromSecretKey(new Uint8Array(data.secretKey));
                 }
-                this.keypair = web3.Keypair.fromSecretKey(Uint8Array.from(data.secretKey));
+                // Kiểm tra và thêm feePayer nếu chưa có
+                if (!transaction.feePayer) {
+                    transaction.feePayer = this.keypair.publicKey;
+                }
+                // Kiểm tra và thêm recentBlockhash nếu chưa có
+                if (!transaction.recentBlockhash) {
+                    const { blockhash } = yield this.connection.getLatestBlockhash();
+                    transaction.recentBlockhash = blockhash;
+                }
+                // Ký giao dịch
+                transaction.partialSign(this.keypair);
+                // Kiểm tra chữ ký
+                if (!transaction.verifySignatures()) {
+                    throw new Error('Xác thực chữ ký thất bại');
+                }
+                return transaction;
             }
-            transaction.feePayer = this.keypair.publicKey;
-            const { blockhash } = yield this.connectionService.getLatestBlockhash();
-            transaction.recentBlockhash = blockhash;
-            transaction.sign(this.keypair);
-            return transaction.serialize().toString('base64');
+            catch (error) {
+                console.error('Lỗi khi ký giao dịch:', error);
+                throw error;
+            }
         });
     }
     getBalance() {

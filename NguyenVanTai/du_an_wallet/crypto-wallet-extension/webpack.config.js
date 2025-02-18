@@ -9,7 +9,7 @@ module.exports = {
     background: './src/background/background.ts',
     contentScript: './src/content/contentScript.ts',
     popup: './src/popup/popup.ts',
-    provider: './src/provider.js'
+    provider: './src/provider.ts'
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -28,6 +28,7 @@ module.exports = {
   resolve: {
     extensions: ['.ts', '.js'],
     fallback: {
+      "buffer": require.resolve("buffer/"),
       "stream": require.resolve("stream-browserify"),
       "crypto": require.resolve("crypto-browserify")
     }

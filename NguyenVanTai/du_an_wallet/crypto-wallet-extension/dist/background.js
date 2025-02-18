@@ -30968,16 +30968,29 @@ const walletService = wallet_1.WalletService.getInstance();
 const connectionService = connection_1.ConnectionService.getInstance();
 // Thêm Map để lưu các pending requests
 const pendingRequests = new Map();
+// Thêm hàm kiểm tra tab tồn tại
+function isTabActive(tabId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const tab = yield chrome.tabs.get(tabId);
+            return tab && !tab.discarded;
+        }
+        catch (_a) {
+            return false;
+        }
+    });
+}
 // Lắng nghe message
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     var _a;
     console.log('Background received message:', message);
     if (message.type === 'CONNECT_REQUEST') {
-        // Xử lý đồng bộ
         handleConnectRequest(message, sender)
             .then(response => {
             try {
-                sendResponse(response);
+                if (!chrome.runtime.lastError) {
+                    sendResponse(response);
+                }
             }
             catch (error) {
                 console.error('Error sending response:', error);
@@ -30985,16 +30998,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })
             .catch(error => {
             console.error('Error handling connect request:', error);
-            sendResponse({
-                approved: false,
-                error: error.message || 'Connection failed'
-            });
+            try {
+                if (!chrome.runtime.lastError) {
+                    sendResponse({
+                        approved: false,
+                        error: error.message || 'Connection failed'
+                    });
+                }
+            }
+            catch (err) {
+                console.error('Error sending error response:', err);
+            }
         });
-        return true; // Giữ kênh message mở
+        return true;
     }
     if (message.type === 'CONNECTION_RESPONSE') {
-        // Xử lý đồng bộ
-        handleConnectionResponse(message);
+        handleConnectionResponse(message).catch(console.error);
         return false;
     }
     if (message.type === 'SIGN_MESSAGE') {
@@ -31006,24 +31025,102 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (typeof popup === 'number') {
             const pendingRequest = pendingRequests.get(popup);
             if (pendingRequest) {
-                console.log('Processing sign message response:', message);
-                pendingRequest.sendResponse({
-                    approved: message.approved,
-                    signature: message.signature,
-                    error: message.error
-                });
-                pendingRequests.delete(popup);
+                try {
+                    console.log('Processing sign message response:', message);
+                    if (!chrome.runtime.lastError) {
+                        pendingRequest.sendResponse({
+                            approved: message.approved,
+                            signature: message.signature,
+                            error: message.error
+                        });
+                    }
+                    pendingRequests.delete(popup);
+                }
+                catch (error) {
+                    console.error('Error sending sign message response:', error);
+                }
             }
-            else {
-                console.error('No pending request found for popup:', popup);
-            }
-        }
-        else {
-            console.error('Invalid popup window ID');
         }
         return false;
     }
-    return false;
+    if (message.type === 'SIGN_TRANSACTION') {
+        let popupId = null;
+        // Mở popup để xác nhận transaction
+        chrome.windows.create({
+            url: 'popup.html',
+            type: 'popup',
+            width: 400,
+            height: 600
+        }, (popupWindow) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a;
+            try {
+                if (!(popupWindow === null || popupWindow === void 0 ? void 0 : popupWindow.id)) {
+                    throw new Error('Failed to create popup window');
+                }
+                popupId = popupWindow.id;
+                // Lưu thông tin transaction
+                yield chrome.storage.local.set({
+                    pendingTransaction: message.transaction,
+                    transactionOrigin: message.origin
+                });
+                // Chỉ gửi response một lần khi nhận được kết quả từ popup
+                const handlePopupMessage = (response) => __awaiter(void 0, void 0, void 0, function* () {
+                    var _a;
+                    if (response.type === 'SIGN_TRANSACTION_RESPONSE') {
+                        // Gửi response về content script
+                        if ((_a = sender.tab) === null || _a === void 0 ? void 0 : _a.id) {
+                            yield chrome.tabs.sendMessage(sender.tab.id, {
+                                type: 'SIGN_TRANSACTION_RESPONSE',
+                                approved: response.approved,
+                                signedTx: response.signedTx,
+                                error: response.error
+                            });
+                        }
+                        // Xóa dữ liệu và đóng popup
+                        yield chrome.storage.local.remove(['pendingTransaction', 'transactionOrigin']);
+                        if (popupId) {
+                            yield chrome.windows.remove(popupId);
+                        }
+                        // Xóa listener
+                        chrome.runtime.onMessage.removeListener(handlePopupMessage);
+                    }
+                });
+                chrome.runtime.onMessage.addListener(handlePopupMessage);
+            }
+            catch (error) {
+                console.error('Error in background:', error);
+                if ((_a = sender.tab) === null || _a === void 0 ? void 0 : _a.id) {
+                    chrome.tabs.sendMessage(sender.tab.id, {
+                        type: 'SIGN_TRANSACTION_RESPONSE',
+                        approved: false,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
+                }
+            }
+        }));
+        return true; // Giữ kết nối cho async response
+    }
+    return true;
+});
+// Lắng nghe khi popup được mở
+chrome.runtime.onConnect.addListener((port) => {
+    console.log('Popup connected');
+    if (port.name === 'popup') {
+        port.onMessage.addListener((msg) => {
+            if (msg.type === 'POPUP_READY') {
+                // Gửi transaction data cho popup
+                chrome.storage.local.get(['pendingTransaction', 'transactionOrigin'], (data) => {
+                    if (data.pendingTransaction && data.transactionOrigin) {
+                        port.postMessage({
+                            type: 'SHOW_TRANSACTION',
+                            transaction: data.pendingTransaction,
+                            origin: data.transactionOrigin
+                        });
+                    }
+                });
+            }
+        });
+    }
 });
 // Hàm xử lý yêu cầu kết nối
 function handleConnectRequest(message, sender) {
@@ -31108,18 +31205,26 @@ function handleSignMessageRequest(message, sendResponse) {
 }
 // Sửa lại hàm xử lý connection response
 function handleConnectionResponse(message) {
-    try {
-        chrome.tabs.query({}, tabs => {
-            tabs.forEach(tab => {
-                if (tab.id) {
-                    chrome.tabs.sendMessage(tab.id, message);
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            // Lấy tất cả các tab
+            const tabs = yield chrome.tabs.query({});
+            // Gửi response đến từng tab một cách an toàn
+            for (const tab of tabs) {
+                if (tab.id && (yield isTabActive(tab.id))) {
+                    try {
+                        yield chrome.tabs.sendMessage(tab.id, message);
+                    }
+                    catch (error) {
+                        console.log(`Failed to send message to tab ${tab.id}:`, error);
+                    }
                 }
-            });
-        });
-    }
-    catch (error) {
-        console.error('Error broadcasting response:', error);
-    }
+            }
+        }
+        catch (error) {
+            console.error('Error broadcasting response:', error);
+        }
+    });
 }
 // Thông báo service worker đã sẵn sàng
 console.log('Service Worker Initialized');
@@ -31132,6 +31237,39 @@ console.log('Service Worker Initialized');
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -31144,12 +31282,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ConnectionService = void 0;
 const wallet_1 = __webpack_require__(736);
+const web3 = __importStar(__webpack_require__(474));
 class ConnectionService {
     constructor() {
         this.connectedSites = [];
         this.popupWindow = null;
         this.handleConnectionRequest = this.handleConnectionRequest.bind(this);
         this.isConnected = this.isConnected.bind(this);
+        // Khởi tạo connection với mạng devnet
+        this.connection = new web3.Connection(web3.clusterApiUrl('devnet'), 'confirmed');
     }
     static getInstance() {
         if (!ConnectionService.instance) {
@@ -31245,13 +31386,32 @@ class ConnectionService {
     }
     getLatestBlockhash() {
         return __awaiter(this, void 0, void 0, function* () {
-            throw new Error("Method not implemented");
+            try {
+                const { blockhash } = yield this.connection.getLatestBlockhash();
+                return { blockhash };
+            }
+            catch (error) {
+                console.error('Error getting latest blockhash:', error);
+                throw error;
+            }
         });
     }
     getBalance(address) {
         return __awaiter(this, void 0, void 0, function* () {
-            throw new Error("Method not implemented");
+            try {
+                const publicKey = new web3.PublicKey(address);
+                const balance = yield this.connection.getBalance(publicKey);
+                return balance;
+            }
+            catch (error) {
+                console.error('Error getting balance:', error);
+                throw error;
+            }
         });
+    }
+    // Thêm phương thức để thay đổi mạng
+    setNetwork(network) {
+        this.connection = new web3.Connection(web3.clusterApiUrl(network), 'confirmed');
     }
 }
 exports.ConnectionService = ConnectionService;
@@ -31313,6 +31473,11 @@ const bip39 = __importStar(__webpack_require__(341));
 const english_1 = __webpack_require__(375);
 const nacl = __importStar(__webpack_require__(947));
 const connection_1 = __webpack_require__(781);
+const buffer_1 = __webpack_require__(287);
+// Thêm polyfill cho Buffer
+if (typeof window !== 'undefined') {
+    window.Buffer = buffer_1.Buffer;
+}
 class WalletService {
     constructor() {
         this.keypair = null;
@@ -31371,18 +31536,36 @@ class WalletService {
     }
     signTransaction(transaction) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!this.keypair) {
-                const data = yield chrome.storage.local.get(['secretKey']);
-                if (!data.secretKey) {
-                    throw new Error('No wallet found');
+            try {
+                // Lấy secret key từ storage nếu chưa có keypair
+                if (!this.keypair) {
+                    const data = yield chrome.storage.local.get(['secretKey']);
+                    if (!data.secretKey) {
+                        throw new Error('Không tìm thấy ví');
+                    }
+                    this.keypair = web3.Keypair.fromSecretKey(new Uint8Array(data.secretKey));
                 }
-                this.keypair = web3.Keypair.fromSecretKey(Uint8Array.from(data.secretKey));
+                // Kiểm tra và thêm feePayer nếu chưa có
+                if (!transaction.feePayer) {
+                    transaction.feePayer = this.keypair.publicKey;
+                }
+                // Kiểm tra và thêm recentBlockhash nếu chưa có
+                if (!transaction.recentBlockhash) {
+                    const { blockhash } = yield this.connection.getLatestBlockhash();
+                    transaction.recentBlockhash = blockhash;
+                }
+                // Ký giao dịch
+                transaction.partialSign(this.keypair);
+                // Kiểm tra chữ ký
+                if (!transaction.verifySignatures()) {
+                    throw new Error('Xác thực chữ ký thất bại');
+                }
+                return transaction;
             }
-            transaction.feePayer = this.keypair.publicKey;
-            const { blockhash } = yield this.connectionService.getLatestBlockhash();
-            transaction.recentBlockhash = blockhash;
-            transaction.sign(this.keypair);
-            return transaction.serialize().toString('base64');
+            catch (error) {
+                console.error('Lỗi khi ký giao dịch:', error);
+                throw error;
+            }
         });
     }
     getBalance() {

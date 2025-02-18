@@ -1,10 +1,15 @@
 import { WalletService } from './wallet';
+import * as web3 from '@solana/web3.js';
 
 export class ConnectionService {
   private static instance: ConnectionService;
+  private connection: web3.Connection;
+
   private constructor() {
     this.handleConnectionRequest = this.handleConnectionRequest.bind(this);
     this.isConnected = this.isConnected.bind(this);
+    // Khởi tạo connection với mạng devnet
+    this.connection = new web3.Connection(web3.clusterApiUrl('devnet'), 'confirmed');
   }
 
   public static getInstance(): ConnectionService {
@@ -105,10 +110,28 @@ export class ConnectionService {
   }
 
   async getLatestBlockhash(): Promise<{ blockhash: string }> {
-    throw new Error("Method not implemented");
+    try {
+      const { blockhash } = await this.connection.getLatestBlockhash();
+      return { blockhash };
+    } catch (error) {
+      console.error('Error getting latest blockhash:', error);
+      throw error;
+    }
   }
 
   async getBalance(address: string): Promise<number> {
-    throw new Error("Method not implemented");
+    try {
+      const publicKey = new web3.PublicKey(address);
+      const balance = await this.connection.getBalance(publicKey);
+      return balance;
+    } catch (error) {
+      console.error('Error getting balance:', error);
+      throw error;
+    }
+  }
+
+  // Thêm phương thức để thay đổi mạng
+  setNetwork(network: web3.Cluster) {
+    this.connection = new web3.Connection(web3.clusterApiUrl(network), 'confirmed');
   }
 }
