@@ -13,7 +13,7 @@ interface TransactionData {
   instructions: {
     programId: string;
     keys: Array<{
-      pubkey: string;
+      pubkey: any; // Thay đổi từ string sang any để hỗ trợ cả PublicKey object
       isSigner: boolean;
       isWritable: boolean;
     }>;
@@ -56,11 +56,12 @@ async function displayTransactionDetails() {
     const dataBuffer = Buffer.from(transferInstruction.data, 'base64');
     const amount = Number(dataBuffer.readBigUInt64LE(0)) / LAMPORTS_PER_SOL;
 
-    // Format địa chỉ để dễ đọc
-    const formatAddress = (address: string) => {
-      if (!address) return 'Unknown';
+    function formatAddress(address: string | undefined | null): string {
+      if (!address || typeof address !== 'string') {
+          return 'Unknown';
+      }
       return `${address.slice(0, 4)}...${address.slice(-4)}`;
-    };
+  }
 
     // Format số lượng SOL
     const formatAmount = (sol: number) => {
@@ -118,10 +119,16 @@ async function displayTransactionDetails() {
   }
 }
 
-// Thêm hàm để format địa chỉ
-function formatAddress(address: string): string {
-  if (!address) return 'Unknown';
-  return `${address.slice(0, 4)}...${address.slice(-4)}`;
+// Sửa lại hàm formatAddress
+function formatAddress(address: string | undefined | null): string {
+  if (!address || typeof address !== 'string') {
+      return 'Unknown';
+  }
+  try {
+      return `${address.slice(0, 4)}...${address.slice(-4)}`;
+  } catch {
+      return 'Invalid address';
+  }
 }
 
 // Thêm hàm để format số lượng SOL
@@ -211,37 +218,51 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   if (hash.startsWith('#sign-transaction')) {
     try {
-      const params = new URLSearchParams(hash.substring(hash.indexOf('?')));
-      const origin = params.get('origin');
-      const transactionData = params.get('transaction');
-      
-      if (origin && transactionData) {
-        console.log('Raw transaction data:', transactionData);
+        const params = new URLSearchParams(hash.substring(hash.indexOf('?')));
+        const origin = params.get('origin');
+        const transactionData = params.get('transaction');
         
-        // Parse transaction data từ mảng số
-        const transactionArray = JSON.parse(decodeURIComponent(transactionData));
-        console.log('Parsed transaction array:', transactionArray);
-        
-        // Tạo Uint8Array từ mảng số
-        const transactionUint8 = new Uint8Array(transactionArray);
-        console.log('Transaction Uint8Array:', transactionUint8);
+        if (origin && transactionData) {
+            console.log('Raw transaction data:', transactionData);
+            
+            // Parse transaction data từ mảng số
+            const transactionArray = JSON.parse(decodeURIComponent(transactionData));
+            console.log('Parsed transaction array:', transactionArray);
+            
+            // Tạo Uint8Array từ mảng số
+            const transactionUint8 = new Uint8Array(transactionArray);
+            console.log('Transaction Uint8Array:', transactionUint8);
 
-        // Tạo Transaction object
-        const transaction = Transaction.from(transactionUint8);
-        console.log('Created Transaction object:', transaction);
+            // Tạo Transaction object và chuyển đổi sang TransactionData
+            const transaction = Transaction.from(transactionUint8);
+            const convertedTransactionData: TransactionData = {
+                serialized: Buffer.from(transactionUint8).toString('base64'),
+                recentBlockhash: transaction.recentBlockhash || '',
+                feePayer: transaction.feePayer?.toBase58() || '',
+                instructions: transaction.instructions.map(instruction => ({
+                    programId: instruction.programId.toBase58(),
+                    keys: instruction.keys.map(key => ({
+                        pubkey: key.pubkey.toBase58(),
+                        isSigner: key.isSigner,
+                        isWritable: key.isWritable
+                    })),
+                    data: Buffer.from(instruction.data).toString('base64')
+                }))
+            };
 
-        // Ẩn các màn hình khác
-        if (walletInfo) walletInfo.style.display = 'none';
-        if (createWallet) createWallet.style.display = 'none';
-        if (connectModal) connectModal.style.display = 'none';
+            // Ẩn các màn hình khác
+            if (walletInfo) walletInfo.style.display = 'none';
+            if (createWallet) createWallet.style.display = 'none';
+            if (connectModal) connectModal.style.display = 'none';
 
-        // Hiển thị modal giao dịch
-        showSignTransactionModal(transaction, decodeURIComponent(origin));
-      }
+            // Hiển thị modal giao dịch
+            showSignTransactionModal(convertedTransactionData, decodeURIComponent(origin));
+        }
     } catch (error) {
-      console.error('Error processing transaction:', error);
+        console.error('Error processing transaction:', error);
     }
-  } else if (hash.startsWith('#connect')) {
+}
+  else if (hash.startsWith('#connect')) {
     const params = new URLSearchParams(hash.substring(hash.indexOf('?')));
     const origin = params.get('origin');
     
@@ -722,109 +743,76 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function showSignTransactionModal(transaction: Transaction, origin: string) {
+  // Sửa lại phần xử lý địa chỉ người nhận trong showSignTransactionModal
+  function showSignTransactionModal(transaction: TransactionData, origin: string) {
     const signTransactionModal = document.getElementById('sign-transaction-modal');
     const txOrigin = document.getElementById('tx-site-origin');
     const txFrom = document.getElementById('tx-from');
     const txTo = document.getElementById('tx-to');
     const txAmount = document.getElementById('tx-amount');
-    const approveTransactionBtn = document.getElementById('approve-transaction-btn');
-    const rejectTransactionBtn = document.getElementById('reject-transaction-btn');
-    const closeModalBtn = document.getElementById('close-modal');
-
-    // Xóa event listeners cũ
-    const cleanupListeners = () => {
-        approveTransactionBtn?.removeEventListener('click', handleApprove);
-        rejectTransactionBtn?.removeEventListener('click', handleReject);
-        closeModalBtn?.removeEventListener('click', closeModal);
-    };
-
-    // Đóng modal
-    const closeModal = () => {
-        if (signTransactionModal) {
-            signTransactionModal.style.display = 'none';
-        }
-        cleanupListeners();
-    };
-
-    // Xử lý approve transaction
-    const handleApprove = async () => {
-        try {
-            console.log('Handling approve with transaction:', transaction);
-            
-            // Gọi trực tiếp hàm handleTransactionSign
-            await handleTransactionSign();
-            
-            console.log('Transaction signed successfully');
-        } catch (error) {
-            console.error('Error approving transaction:', error);
-            chrome.runtime.sendMessage({
-                type: 'SIGN_TRANSACTION_RESPONSE',
-                approved: false,
-                error: error instanceof Error ? error.message : 'Unknown error'
-            });
-        } finally {
-            closeModal();
-        }
-    };
-
-    // Xử lý reject transaction
-    const handleReject = () => {
-        chrome.runtime.sendMessage({
-            type: 'SIGN_TRANSACTION_RESPONSE',
-            approved: false,
-            error: 'User rejected transaction'
-        });
-        closeModal();
-    };
-
+const approveTransactionBtn = document.getElementById('approve-transaction-btn');
+const rejectTransactionBtn = document.getElementById('reject-transaction-btn');
+    
+    
     if (signTransactionModal && txOrigin && txFrom && txTo && txAmount) {
         try {
-            cleanupListeners();
-            
-            // Hiển thị thông tin từ transaction
+            console.log('Processing transaction:', transaction);
+
+            // Hiển thị origin và địa chỉ người gửi
             txOrigin.textContent = origin || 'Unknown origin';
-            
-            // Kiểm tra và hiển thị thông tin giao dịch
-            if (transaction && transaction.instructions && transaction.instructions.length > 0) {
-                const instruction = transaction.instructions[0];
-                if (instruction.keys && instruction.keys.length >= 2) {
-                    txFrom.textContent = instruction.keys[0].pubkey.toString();
-                    txTo.textContent = instruction.keys[1].pubkey.toString();
-                    
-                    // Sửa phần parse amount
-                    if (instruction.data && instruction.data instanceof Uint8Array && instruction.data.length >= 8) {
-                        try {
-                            const dataView = new DataView(instruction.data.buffer);
-                            const lamports = dataView.getBigUint64(4, true);
-                            txAmount.textContent = `${Number(lamports) / LAMPORTS_PER_SOL} SOL`;
-                        } catch (e) {
-                            console.error('Error parsing amount:', e);
-                            txAmount.textContent = 'Unknown amount';
-                        }
-                    } else {
-                        txAmount.textContent = 'Unknown amount';
-                    }
-                }
+            txFrom.textContent = formatAddress(transaction.feePayer);
+
+            // Khôi phục transaction để lấy thông tin người nhận
+            const rawTransaction = Transaction.from(Buffer.from(transaction.serialized, 'base64'));
+            console.log('Deserialized transaction:', rawTransaction);
+
+            // Lấy instruction chuyển SOL
+            const transferInstruction = rawTransaction.instructions.find(
+                inst => inst.programId.toBase58() === SystemProgram.programId.toBase58()
+            );
+
+            if (transferInstruction) {
+                // Lấy địa chỉ người nhận từ instruction
+                const recipientPubkey = transferInstruction.keys[1].pubkey;
+                const recipientAddress = recipientPubkey.toBase58();
+                console.log('Recipient address:', recipientAddress);
+                
+                txTo.textContent = formatAddress(recipientAddress);
+
+                // Parse số lượng SOL
+                const dataBuffer = transferInstruction.data;
+                const lamports = dataBuffer.readBigUInt64LE(4);
+                const amount = Number(lamports) / LAMPORTS_PER_SOL;
+                txAmount.textContent = `${amount.toFixed(9)} SOL`;
+            } else {
+                throw new Error('Invalid transfer instruction');
             }
 
-            signTransactionModal.style.display = 'flex';
-            
-            approveTransactionBtn?.addEventListener('click', handleApprove);
-            rejectTransactionBtn?.addEventListener('click', handleReject);
-            closeModalBtn?.addEventListener('click', closeModal);
+            // Thêm event listeners cho các nút
+            approveTransactionBtn?.addEventListener('click', async () => {
+                try {
+                    await handleTransactionSign();
+                    signTransactionModal.style.display = 'none';
+                } catch (error) {
+                    console.error('Error approving transaction:', error);
+                }
+            });
 
+            rejectTransactionBtn?.addEventListener('click', () => {
+                chrome.runtime.sendMessage({
+                    type: 'SIGN_TRANSACTION_RESPONSE',
+                    approved: false,
+                    error: 'User rejected transaction'
+                });
+                signTransactionModal.style.display = 'none';
+            });
+
+            signTransactionModal.style.display = 'flex';
         } catch (error) {
             console.error('Error showing transaction modal:', error);
-            chrome.runtime.sendMessage({
-                type: 'SIGN_TRANSACTION_RESPONSE',
-                approved: false,
-                error: error instanceof Error ? error.message : 'Failed to process transaction'
-            });
-            closeModal();
         }
     }
-  }
+}
 
   // Thêm hàm update balance
   async function updateBalance() {
@@ -870,7 +858,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         const transactionBuffer = Buffer.from(transactionData.serialized, 'base64');
         const transaction = Transaction.from(transactionBuffer);
-        showSignTransactionModal(transaction, result.transactionOrigin);
+        showSignTransactionModal(transactionData, result.transactionOrigin);
       } catch (e) {
         console.error('Error parsing transaction:', e);
         chrome.runtime.sendMessage({
