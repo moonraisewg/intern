@@ -31040,6 +31040,246 @@ function setupEventHandlers() {
 
 /***/ }),
 
+/***/ 43:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.showConnectModal = showConnectModal;
+const wallet_1 = __webpack_require__(736);
+function showConnectModal(elements, origin) {
+    return __awaiter(this, void 0, void 0, function* () {
+        console.log('ShowConnectModal called with elements:', {
+            hasConnectModal: !!elements.connectModal,
+            hasWalletInfo: !!elements.walletInfo,
+            hasCreateWallet: !!elements.createWallet,
+            hasSiteOrigin: !!elements.siteOrigin,
+            hasSiteIcon: !!elements.siteIcon,
+            hasApproveBtn: !!elements.approveConnectBtn,
+            hasRejectBtn: !!elements.rejectConnectBtn
+        });
+        try {
+            const { connectModal, walletInfo, createWallet, siteOrigin, siteIcon } = elements;
+            const walletService = wallet_1.WalletService.getInstance();
+            // Kiểm tra ví trước
+            const address = yield walletService.getAddress();
+            console.log('Current wallet address:', address);
+            if (!address) {
+                // Nếu chưa có ví, hiện màn hình tạo ví
+                console.log('No wallet found, showing create wallet screen');
+                walletInfo.style.display = 'block';
+                createWallet.style.display = 'block';
+                connectModal.style.display = 'none';
+                // Thêm thông báo
+                const messageElement = document.createElement('p');
+                messageElement.className = 'warning-text';
+                messageElement.textContent = 'Vui lòng tạo ví trước khi kết nối!';
+                createWallet.insertBefore(messageElement, createWallet.firstChild);
+                return;
+            }
+            // Có ví rồi thì hiển thị modal kết nối
+            console.log('Wallet found, showing connect modal');
+            walletInfo.style.display = 'none';
+            createWallet.style.display = 'none';
+            connectModal.style.display = 'flex';
+            // Hiển thị thông tin trang web
+            siteOrigin.textContent = decodeURIComponent(origin);
+            if (siteIcon) {
+                siteIcon.src = 'default-icon.png';
+            }
+            // Setup event handlers cho nút chấp nhận/từ chối
+            setupConnectButtons(elements, origin);
+        }
+        catch (error) {
+            console.error('Error in showConnectModal:', error);
+        }
+    });
+}
+function handleNoWallet(elements) {
+    const { walletInfo, createWallet, connectModal } = elements;
+    walletInfo.style.display = 'none';
+    createWallet.style.display = 'block';
+    connectModal.style.display = 'none';
+    const messageElement = document.createElement('p');
+    messageElement.className = 'warning-text';
+    messageElement.textContent = 'Vui lòng tạo ví hoặc đăng nhập trước khi kết nối!';
+    createWallet.insertBefore(messageElement, createWallet.firstChild);
+}
+function setupModalDisplay(elements, origin, iconUrl) {
+    const { connectModal, walletInfo, createWallet, siteOrigin, siteIcon } = elements;
+    walletInfo.style.display = 'none';
+    createWallet.style.display = 'none';
+    connectModal.style.display = 'block';
+    siteOrigin.textContent = decodeURIComponent(origin);
+    siteIcon.src = iconUrl || 'default-icon.png';
+}
+function setupConnectButtons(elements, origin) {
+    const { approveConnectBtn, rejectConnectBtn } = elements;
+    const walletService = wallet_1.WalletService.getInstance();
+    approveConnectBtn === null || approveConnectBtn === void 0 ? void 0 : approveConnectBtn.addEventListener('click', () => __awaiter(this, void 0, void 0, function* () {
+        try {
+            const address = yield walletService.getAddress();
+            if (!address) {
+                console.error('No wallet address found');
+                return;
+            }
+            console.log('Approving connection for address:', address);
+            chrome.runtime.sendMessage({
+                type: 'CONNECTION_RESPONSE',
+                approved: true,
+                publicKey: address,
+                origin: origin
+            }, () => {
+                if (chrome.runtime.lastError) {
+                    console.error('Error sending approval:', chrome.runtime.lastError);
+                }
+                else {
+                    window.close();
+                }
+            });
+        }
+        catch (error) {
+            console.error('Error approving connection:', error);
+        }
+    }));
+    rejectConnectBtn === null || rejectConnectBtn === void 0 ? void 0 : rejectConnectBtn.addEventListener('click', () => {
+        chrome.runtime.sendMessage({
+            type: 'CONNECTION_RESPONSE',
+            approved: false,
+            origin: origin
+        }, () => window.close());
+    });
+}
+
+
+/***/ }),
+
+/***/ 432:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.handleMessageSign = handleMessageSign;
+const wallet_1 = __webpack_require__(736);
+let isProcessing = false;
+function handleMessageSign(messageBytes, approved) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (isProcessing)
+            return;
+        isProcessing = true;
+        try {
+            if (approved) {
+                const walletService = wallet_1.WalletService.getInstance();
+                const signature = yield walletService.signMessage(messageBytes);
+                chrome.runtime.sendMessage({
+                    type: 'SIGN_MESSAGE_RESPONSE',
+                    approved: true,
+                    signature: Array.from(signature)
+                });
+            }
+            else {
+                chrome.runtime.sendMessage({
+                    type: 'SIGN_MESSAGE_RESPONSE',
+                    approved: false,
+                    error: 'User rejected message signing'
+                });
+            }
+        }
+        catch (error) {
+            console.error('Error handling message sign:', error);
+            chrome.runtime.sendMessage({
+                type: 'SIGN_MESSAGE_RESPONSE',
+                approved: false,
+                error: error instanceof Error ? error.message : 'Failed to sign message'
+            });
+        }
+        finally {
+            isProcessing = false;
+            setTimeout(() => window.close(), 100);
+        }
+    });
+}
+
+
+/***/ }),
+
+/***/ 921:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.showSignMessageModal = showSignMessageModal;
+const MessageHandler_1 = __webpack_require__(432);
+function showSignMessageModal(elements, origin, encodedMessage) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const { signMessageModal, messageOrigin, messageContent, walletInfo, createWallet } = elements;
+        try {
+            // Decode message từ base64
+            const messageBytes = new Uint8Array(atob(encodedMessage)
+                .split('')
+                .map(c => c.charCodeAt(0)));
+            // Hiển thị UI
+            walletInfo.style.display = 'none';
+            createWallet.style.display = 'none';
+            signMessageModal.style.display = 'block';
+            messageOrigin.textContent = decodeURIComponent(origin);
+            messageContent.textContent = new TextDecoder().decode(messageBytes);
+            // Setup message handlers
+            setupMessageButtons(elements, messageBytes);
+        }
+        catch (error) {
+            handleMessageError(error);
+        }
+    });
+}
+function setupMessageButtons(elements, messageBytes) {
+    const { approveSignBtn, rejectSignBtn } = elements;
+    approveSignBtn === null || approveSignBtn === void 0 ? void 0 : approveSignBtn.addEventListener('click', () => (0, MessageHandler_1.handleMessageSign)(messageBytes, true));
+    rejectSignBtn === null || rejectSignBtn === void 0 ? void 0 : rejectSignBtn.addEventListener('click', () => (0, MessageHandler_1.handleMessageSign)(messageBytes, false));
+}
+function handleMessageError(error) {
+    console.error('Error showing message modal:', error);
+    chrome.runtime.sendMessage({
+        type: 'SIGN_MESSAGE_RESPONSE',
+        approved: false,
+        error: error instanceof Error ? error.message : 'Failed to show message modal'
+    });
+    window.close();
+}
+
+
+/***/ }),
+
 /***/ 683:
 /***/ (function(__unused_webpack_module, exports, __webpack_require__) {
 
@@ -31059,127 +31299,11 @@ const wallet_1 = __webpack_require__(736);
 const connection_1 = __webpack_require__(781);
 const EventHandlers_1 = __webpack_require__(828);
 const web3_js_1 = __webpack_require__(474);
+const format_1 = __webpack_require__(668);
+const handlers_1 = __webpack_require__(537);
+const ConnectModal_1 = __webpack_require__(43);
+const MessageModal_1 = __webpack_require__(921);
 let isProcessing = false;
-function displayTransactionDetails() {
-    return __awaiter(this, void 0, void 0, function* () {
-        var _a;
-        try {
-            const data = yield chrome.storage.local.get(['pendingTransaction']);
-            const transaction = data.pendingTransaction;
-            if (!transaction) {
-                throw new Error('No transaction data found');
-            }
-            console.log('Raw transaction data:', transaction);
-            // Tìm instruction chuyển SOL (System Program)
-            const transferInstruction = transaction.instructions.find((inst) => inst.programId === '11111111111111111111111111111111');
-            if (!transferInstruction) {
-                throw new Error('Not a transfer transaction');
-            }
-            // Tìm người nhận (địa chỉ đích trong instruction)
-            const recipient = (_a = transferInstruction.keys.find((key) => key.isWritable && !key.isSigner)) === null || _a === void 0 ? void 0 : _a.pubkey;
-            // Decode số lượng SOL từ data của instruction
-            const dataBuffer = Buffer.from(transferInstruction.data, 'base64');
-            const amount = Number(dataBuffer.readBigUInt64LE(0)) / web3_js_1.LAMPORTS_PER_SOL;
-            function formatAddress(address) {
-                if (!address || typeof address !== 'string') {
-                    return 'Unknown';
-                }
-                return `${address.slice(0, 4)}...${address.slice(-4)}`;
-            }
-            // Format số lượng SOL
-            const formatAmount = (sol) => {
-                return `${sol.toFixed(9)} SOL`;
-            };
-            // Cập nhật UI
-            const elements = {
-                from: document.getElementById('from-address'),
-                to: document.getElementById('to-address'),
-                amount: document.getElementById('amount'),
-                fee: document.getElementById('fee'),
-                program: document.getElementById('program-id'),
-                total: document.getElementById('total-amount')
-            };
-            if (elements.from) {
-                elements.from.textContent = formatAddress(transaction.feePayer);
-                elements.from.title = transaction.feePayer; // Hiển thị địa chỉ đầy đủ khi hover
-            }
-            if (elements.to) {
-                elements.to.textContent = formatAddress(recipient);
-                elements.to.title = recipient; // Hiển thị địa chỉ đầy đủ khi hover
-            }
-            if (elements.amount) {
-                elements.amount.textContent = formatAmount(amount);
-            }
-            if (elements.fee) {
-                elements.fee.textContent = '0.000005 SOL'; // Phí cố định cho giao dịch đơn giản
-            }
-            if (elements.program) {
-                elements.program.textContent = 'System Program (Transfer)';
-            }
-            if (elements.total) {
-                elements.total.textContent = formatAmount(amount + 0.000005); // Tổng = số lượng + phí
-            }
-            // Hiển thị container khi đã load xong dữ liệu
-            const container = document.getElementById('transaction-details');
-            if (container) {
-                container.style.display = 'block';
-            }
-        }
-        catch (error) {
-            console.error('Error displaying transaction details:', error);
-            const errorElement = document.getElementById('transaction-error');
-            if (errorElement) {
-                errorElement.textContent = error instanceof Error ? error.message : 'Failed to load transaction details';
-            }
-        }
-    });
-}
-// Sửa lại hàm formatAddress
-function formatAddress(address) {
-    if (!address || typeof address !== 'string') {
-        return 'Unknown';
-    }
-    try {
-        return `${address.slice(0, 4)}...${address.slice(-4)}`;
-    }
-    catch (_a) {
-        return 'Invalid address';
-    }
-}
-// Thêm hàm để format số lượng SOL
-function formatAmount(lamports) {
-    return (lamports / web3_js_1.LAMPORTS_PER_SOL).toFixed(9) + ' SOL';
-}
-function handleTransactionSign() {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const data = yield chrome.storage.local.get(['pendingTransaction']);
-            const transactionData = data.pendingTransaction;
-            if (!transactionData) {
-                throw new Error('No pending transaction found');
-            }
-            // Khôi phục transaction từ dữ liệu
-            const transaction = web3_js_1.Transaction.from(Buffer.from(transactionData.serialized, 'base64'));
-            // Ký transaction
-            const walletService = wallet_1.WalletService.getInstance();
-            const signedTx = yield walletService.signTransaction(transaction);
-            // Gửi response
-            chrome.runtime.sendMessage({
-                type: 'SIGN_TRANSACTION_RESPONSE',
-                approved: true,
-                signedTx: signedTx.serialize().toString('base64')
-            });
-        }
-        catch (error) {
-            console.error('Error signing transaction:', error);
-            chrome.runtime.sendMessage({
-                type: 'SIGN_TRANSACTION_RESPONSE',
-                approved: false,
-                error: error instanceof Error ? error.message : 'Failed to sign transaction'
-            });
-        }
-    });
-}
 document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     const walletService = wallet_1.WalletService.getInstance();
@@ -31206,21 +31330,11 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
     const siteIcon = document.getElementById('site-icon');
     const approveConnectBtn = document.getElementById('approve-connect');
     const rejectConnectBtn = document.getElementById('reject-connect');
-    const signTransactionModal = document.getElementById('sign-transaction-modal');
-    const txSiteIcon = document.getElementById('tx-site-icon');
-    const txSiteOrigin = document.getElementById('tx-site-origin');
-    const txFrom = document.getElementById('tx-from');
-    const txToInput = document.getElementById('tx-to-input');
-    const txAmountInput = document.getElementById('tx-amount-input');
-    const txFee = document.getElementById('tx-fee');
-    const approveTransactionBtn = document.getElementById('approve-transaction-btn');
-    const rejectTransactionBtn = document.getElementById('reject-transaction-btn');
     // Kiểm tra các elements cần thiết
     if (!walletInfo || !createWallet || !connectModal || !siteOrigin || !walletAddress) {
         console.error('Required elements not found');
         return;
     }
-    // Xử lý hash URL để hiển thị đúng màn hình
     const hash = window.location.hash;
     if (hash.startsWith('#sign-transaction')) {
         try {
@@ -31248,7 +31362,8 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
                             isSigner: key.isSigner,
                             isWritable: key.isWritable
                         })),
-                        data: Buffer.from(instruction.data).toString('base64')
+                        // Keep the original instruction data as Uint8Array
+                        data: Buffer.from(instruction.data) // Convert to Buffer to ensure Uint8Array compatibility
                     }))
                 };
                 // Ẩn các màn hình khác
@@ -31270,62 +31385,25 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
         const params = new URLSearchParams(hash.substring(hash.indexOf('?')));
         const origin = params.get('origin');
         if (origin) {
-            // Kiểm tra ví đã tồn tại chưa
-            const address = yield walletService.getAddress();
-            if (!address) {
-                // Hiển thị màn hình tạo ví
-                walletInfo.style.display = 'none';
-                createWallet.style.display = 'block';
-                connectModal.style.display = 'none';
-                // Thêm thông báo
-                const messageElement = document.createElement('p');
-                messageElement.className = 'warning-text';
-                messageElement.textContent = 'Vui lòng tạo ví hoặc đăng nhập trước khi kết nối!';
-                createWallet.insertBefore(messageElement, createWallet.firstChild);
+            console.log('Opening connect modal for origin:', origin);
+            // Kiểm tra elements trước khi gọi showConnectModal
+            if (!connectModal || !walletInfo || !createWallet || !siteOrigin || !siteIcon || !approveConnectBtn || !rejectConnectBtn) {
+                console.error('Missing required elements for connect modal');
                 return;
             }
-            // Nếu có ví, hiển thị modal xác nhận kết nối
+            // Ẩn các màn hình khác trước khi hiển thị modal
             walletInfo.style.display = 'none';
             createWallet.style.display = 'none';
-            connectModal.style.display = 'block';
-            // Hiển thị thông tin trang web
-            siteOrigin.textContent = decodeURIComponent(origin);
-            // Xử lý nút chấp nhận/từ chối
-            if (approveConnectBtn && rejectConnectBtn) {
-                approveConnectBtn.addEventListener('click', () => __awaiter(void 0, void 0, void 0, function* () {
-                    try {
-                        const address = yield walletService.getAddress();
-                        console.log('Got address from wallet:', address); // Debug log
-                        if (!address) {
-                            console.error('No address found');
-                            return;
-                        }
-                        // Gửi message đến background
-                        chrome.runtime.sendMessage({
-                            type: 'CONNECTION_RESPONSE',
-                            approved: true,
-                            publicKey: address
-                        }, (response) => {
-                            if (chrome.runtime.lastError) {
-                                console.error('Error sending approval:', chrome.runtime.lastError);
-                            }
-                            else {
-                                console.log('Approval sent successfully with address:', address);
-                            }
-                            window.close();
-                        });
-                    }
-                    catch (error) {
-                        console.error('Error getting address:', error);
-                    }
-                }));
-                rejectConnectBtn.addEventListener('click', () => {
-                    chrome.runtime.sendMessage({
-                        type: 'CONNECTION_RESPONSE',
-                        approved: false
-                    }, () => window.close());
-                });
-            }
+            // Hiển thị modal kết nối
+            yield (0, ConnectModal_1.showConnectModal)({
+                connectModal,
+                walletInfo,
+                createWallet,
+                siteOrigin,
+                siteIcon,
+                approveConnectBtn,
+                rejectConnectBtn
+            }, decodeURIComponent(origin));
         }
     }
     else if (hash.startsWith('#sign-message')) {
@@ -31338,88 +31416,21 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
             const messageContent = document.getElementById('message-content');
             const approveSignBtn = document.getElementById('approve-sign-message');
             const rejectSignBtn = document.getElementById('reject-sign-message');
+            // Kiểm tra tất cả elements cần thiết có tồn tại không
             if (signMessageModal && messageOrigin && messageContent) {
-                try {
-                    console.log('Preparing to sign message');
-                    // Decode message từ base64
-                    const messageBytes = new Uint8Array(atob(encodedMessage)
-                        .split('')
-                        .map(c => c.charCodeAt(0)));
-                    // Hiển thị UI
-                    walletInfo.style.display = 'none';
-                    createWallet.style.display = 'none';
-                    signMessageModal.style.display = 'block';
-                    messageOrigin.textContent = decodeURIComponent(origin);
-                    // Hiển thị message dưới dạng text nếu có thể
-                    messageContent.textContent = new TextDecoder().decode(messageBytes);
-                    // Xử lý approve
-                    approveSignBtn === null || approveSignBtn === void 0 ? void 0 : approveSignBtn.addEventListener('click', () => __awaiter(void 0, void 0, void 0, function* () {
-                        if (isProcessing)
-                            return;
-                        isProcessing = true;
-                        try {
-                            console.log('User approved signing');
-                            const signature = yield walletService.signMessage(messageBytes);
-                            console.log('Message signed successfully:', {
-                                signature: Array.from(signature)
-                            });
-                            // Gửi response và đợi confirmation
-                            chrome.runtime.sendMessage({
-                                type: 'SIGN_MESSAGE_RESPONSE',
-                                approved: true,
-                                signature: Array.from(signature)
-                            }, () => {
-                                if (chrome.runtime.lastError) {
-                                    console.log('Message port closed:', chrome.runtime.lastError.message);
-                                }
-                                // Đóng popup sau khi xử lý error
-                                setTimeout(() => window.close(), 100);
-                            });
-                        }
-                        catch (error) {
-                            console.error('Error signing message:', error);
-                            chrome.runtime.sendMessage({
-                                type: 'SIGN_MESSAGE_RESPONSE',
-                                approved: false,
-                                error: error instanceof Error ? error.message : 'Failed to sign message'
-                            }, () => {
-                                if (chrome.runtime.lastError) {
-                                    console.log('Message port closed:', chrome.runtime.lastError.message);
-                                }
-                                setTimeout(() => window.close(), 100);
-                            });
-                        }
-                        finally {
-                            isProcessing = false;
-                        }
-                    }));
-                    // Xử lý reject
-                    rejectSignBtn === null || rejectSignBtn === void 0 ? void 0 : rejectSignBtn.addEventListener('click', () => {
-                        if (isProcessing)
-                            return;
-                        isProcessing = true;
-                        console.log('User rejected signing');
-                        chrome.runtime.sendMessage({
-                            type: 'SIGN_MESSAGE_RESPONSE',
-                            approved: false,
-                            error: 'User rejected message signing'
-                        }, () => {
-                            if (chrome.runtime.lastError) {
-                                console.log('Message port closed:', chrome.runtime.lastError.message);
-                            }
-                            setTimeout(() => window.close(), 100);
-                        });
-                    });
-                }
-                catch (error) {
-                    console.error('Error preparing message signing:', error);
-                    chrome.runtime.sendMessage({
-                        type: 'SIGN_MESSAGE_RESPONSE',
-                        approved: false,
-                        error: error instanceof Error ? error.message : 'Failed to prepare message signing'
-                    });
-                    window.close();
-                }
+                const elements = {
+                    signMessageModal, // Đã xác định không null
+                    messageOrigin, // Đã xác định không null
+                    messageContent, // Đã xác định không null
+                    approveSignBtn,
+                    rejectSignBtn,
+                    walletInfo, // Đã xác định từ trước
+                    createWallet // Đã xác định từ trước
+                }; // Khóa kiểu của object
+                yield (0, MessageModal_1.showSignMessageModal)(elements, origin, encodedMessage);
+            }
+            else {
+                console.error('Required message modal elements not found');
             }
         }
     }
@@ -31686,31 +31697,6 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
             showSignTransactionModal(msg.transaction, msg.origin);
         }
     });
-    function showConnectModal(origin, iconUrl) {
-        if (connectModal && siteOrigin && siteIcon) {
-            siteOrigin.textContent = origin;
-            siteIcon.src = iconUrl || 'default-icon.png';
-            connectModal.style.display = 'flex';
-            approveConnectBtn === null || approveConnectBtn === void 0 ? void 0 : approveConnectBtn.addEventListener('click', () => __awaiter(this, void 0, void 0, function* () {
-                yield connectionService.addConnectedSite(origin);
-                chrome.runtime.sendMessage({
-                    type: 'CONNECTION_RESPONSE',
-                    approved: true,
-                    origin
-                });
-                connectModal.style.display = 'none';
-            }));
-            rejectConnectBtn === null || rejectConnectBtn === void 0 ? void 0 : rejectConnectBtn.addEventListener('click', () => {
-                chrome.runtime.sendMessage({
-                    type: 'CONNECTION_RESPONSE',
-                    approved: false,
-                    origin
-                });
-                connectModal.style.display = 'none';
-            });
-        }
-    }
-    // Sửa lại phần xử lý địa chỉ người nhận trong showSignTransactionModal
     function showSignTransactionModal(transaction, origin) {
         const signTransactionModal = document.getElementById('sign-transaction-modal');
         const txOrigin = document.getElementById('tx-site-origin');
@@ -31721,26 +31707,23 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
         const rejectTransactionBtn = document.getElementById('reject-transaction-btn');
         if (signTransactionModal && txOrigin && txFrom && txTo && txAmount) {
             try {
-                console.log('Processing transaction:', transaction);
                 // Hiển thị origin và địa chỉ người gửi
                 txOrigin.textContent = origin || 'Unknown origin';
-                txFrom.textContent = formatAddress(transaction.feePayer);
+                txFrom.textContent = (0, format_1.formatAddress)(transaction.feePayer);
                 // Khôi phục transaction để lấy thông tin người nhận
                 const rawTransaction = web3_js_1.Transaction.from(Buffer.from(transaction.serialized, 'base64'));
-                console.log('Deserialized transaction:', rawTransaction);
                 // Lấy instruction chuyển SOL
                 const transferInstruction = rawTransaction.instructions.find(inst => inst.programId.toBase58() === web3_js_1.SystemProgram.programId.toBase58());
                 if (transferInstruction) {
                     // Lấy địa chỉ người nhận từ instruction
                     const recipientPubkey = transferInstruction.keys[1].pubkey;
                     const recipientAddress = recipientPubkey.toBase58();
-                    console.log('Recipient address:', recipientAddress);
-                    txTo.textContent = formatAddress(recipientAddress);
+                    txTo.textContent = (0, format_1.formatAddress)(recipientAddress);
                     // Parse số lượng SOL
                     const dataBuffer = transferInstruction.data;
                     const lamports = dataBuffer.readBigUInt64LE(4);
                     const amount = Number(lamports) / web3_js_1.LAMPORTS_PER_SOL;
-                    txAmount.textContent = `${amount.toFixed(9)} SOL`;
+                    txAmount.textContent = (0, format_1.formatAmount)(amount);
                 }
                 else {
                     throw new Error('Invalid transfer instruction');
@@ -31748,7 +31731,7 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
                 // Thêm event listeners cho các nút
                 approveTransactionBtn === null || approveTransactionBtn === void 0 ? void 0 : approveTransactionBtn.addEventListener('click', () => __awaiter(this, void 0, void 0, function* () {
                     try {
-                        yield handleTransactionSign();
+                        yield (0, handlers_1.handleTransactionSign)();
                         signTransactionModal.style.display = 'none';
                     }
                     catch (error) {
@@ -31777,7 +31760,7 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
                 const balance = yield walletService.getBalance();
                 const balanceInSOL = balance / web3_js_1.LAMPORTS_PER_SOL;
                 if (walletBalance) {
-                    walletBalance.textContent = `${balanceInSOL.toFixed(4)} SOL`;
+                    walletBalance.textContent = (0, format_1.formatBalance)(balance);
                 }
             }
             catch (error) {
@@ -31849,6 +31832,90 @@ document.addEventListener('DOMContentLoaded', () => __awaiter(void 0, void 0, vo
         }
     });
 }));
+
+
+/***/ }),
+
+/***/ 537:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.handleTransactionSign = handleTransactionSign;
+const web3_js_1 = __webpack_require__(474);
+const wallet_1 = __webpack_require__(736);
+function handleTransactionSign() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const data = yield chrome.storage.local.get(['pendingTransaction']);
+            const transactionData = data.pendingTransaction;
+            if (!transactionData) {
+                throw new Error('No pending transaction found');
+            }
+            // Create transaction from serialized data
+            const transaction = web3_js_1.Transaction.from(Buffer.from(transactionData.serialized, 'base64'));
+            // Sign transaction
+            const walletService = wallet_1.WalletService.getInstance();
+            const signedTx = yield walletService.signTransaction(transaction);
+            // Send response
+            chrome.runtime.sendMessage({
+                type: 'SIGN_TRANSACTION_RESPONSE',
+                approved: true,
+                signedTx: signedTx.serialize().toString('base64')
+            });
+        }
+        catch (error) {
+            console.error('Error signing transaction:', error);
+            chrome.runtime.sendMessage({
+                type: 'SIGN_TRANSACTION_RESPONSE',
+                approved: false,
+                error: error instanceof Error ? error.message : 'Failed to sign transaction'
+            });
+        }
+    });
+}
+
+
+/***/ }),
+
+/***/ 668:
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.formatAddress = formatAddress;
+exports.formatAmount = formatAmount;
+exports.formatBalance = formatBalance;
+const web3_js_1 = __webpack_require__(474);
+function formatAddress(address) {
+    if (!address || typeof address !== 'string') {
+        return 'Unknown';
+    }
+    try {
+        return `${address.slice(0, 4)}...${address.slice(-4)}`;
+    }
+    catch (_a) {
+        return 'Invalid address';
+    }
+}
+function formatAmount(lamports) {
+    const solAmount = lamports;
+    return `${solAmount.toFixed(9)} SOL`;
+}
+function formatBalance(lamports) {
+    return (lamports / web3_js_1.LAMPORTS_PER_SOL).toFixed(4) + ' SOL';
+}
 
 
 /***/ }),
@@ -32145,9 +32212,12 @@ class WalletService {
     getAddress() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const data = yield chrome.storage.local.get(['publicKey']);
-                console.log('Retrieved address from storage:', data.publicKey); // Debug log
-                return data.publicKey || null;
+                const data = yield chrome.storage.local.get(['publicKey', 'secretKey']);
+                // Kiểm tra cả public key và secret key
+                if (!data.publicKey || !data.secretKey) {
+                    return null;
+                }
+                return data.publicKey;
             }
             catch (error) {
                 console.error('Error getting address:', error);

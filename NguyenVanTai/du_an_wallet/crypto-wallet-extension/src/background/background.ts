@@ -290,6 +290,8 @@ async function handleSignMessageRequest(message: any, sendResponse: (response: a
 // Sửa lại hàm xử lý connection response
 async function handleConnectionResponse(message: any) {
   try {
+    console.log('Processing connection response:', message);
+    
     // Lấy tất cả các tab
     const tabs = await chrome.tabs.query({});
     
@@ -297,7 +299,12 @@ async function handleConnectionResponse(message: any) {
     for (const tab of tabs) {
       if (tab.id && await isTabActive(tab.id)) {
         try {
-          await chrome.tabs.sendMessage(tab.id, message);
+          await chrome.tabs.sendMessage(tab.id, {
+            type: 'SOL_CONNECT_RESPONSE',
+            approved: message.approved,
+            publicKey: message.publicKey,
+            error: message.error
+          });
         } catch (error) {
           console.log(`Failed to send message to tab ${tab.id}:`, error);
         }

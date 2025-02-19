@@ -31207,13 +31207,19 @@ function handleSignMessageRequest(message, sendResponse) {
 function handleConnectionResponse(message) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
+            console.log('Processing connection response:', message);
             // Lấy tất cả các tab
             const tabs = yield chrome.tabs.query({});
             // Gửi response đến từng tab một cách an toàn
             for (const tab of tabs) {
                 if (tab.id && (yield isTabActive(tab.id))) {
                     try {
-                        yield chrome.tabs.sendMessage(tab.id, message);
+                        yield chrome.tabs.sendMessage(tab.id, {
+                            type: 'SOL_CONNECT_RESPONSE',
+                            approved: message.approved,
+                            publicKey: message.publicKey,
+                            error: message.error
+                        });
                     }
                     catch (error) {
                         console.log(`Failed to send message to tab ${tab.id}:`, error);
@@ -31524,9 +31530,12 @@ class WalletService {
     getAddress() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const data = yield chrome.storage.local.get(['publicKey']);
-                console.log('Retrieved address from storage:', data.publicKey); // Debug log
-                return data.publicKey || null;
+                const data = yield chrome.storage.local.get(['publicKey', 'secretKey']);
+                // Kiểm tra cả public key và secret key
+                if (!data.publicKey || !data.secretKey) {
+                    return null;
+                }
+                return data.publicKey;
             }
             catch (error) {
                 console.error('Error getting address:', error);

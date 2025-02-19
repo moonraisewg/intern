@@ -67,9 +67,12 @@ export class WalletService {
 
   async getAddress(): Promise<string | null> {
     try {
-      const data = await chrome.storage.local.get(['publicKey']);
-      console.log('Retrieved address from storage:', data.publicKey); // Debug log
-      return data.publicKey || null;
+      const data = await chrome.storage.local.get(['publicKey', 'secretKey']);
+      // Kiểm tra cả public key và secret key
+      if (!data.publicKey || !data.secretKey) {
+        return null;
+      }
+      return data.publicKey;
     } catch (error) {
       console.error('Error getting address:', error);
       return null;
