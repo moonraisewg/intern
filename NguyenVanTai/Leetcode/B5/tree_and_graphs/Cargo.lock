@@ -15,7 +15,15 @@ name = "diameter_of_binary_tree"
 version = "0.1.0"
 
 [[package]]
+name = "find_if_path_exists_in_graph"
+version = "0.1.0"
+
+[[package]]
 name = "insert_into_a_binary_search_tree"
+version = "0.1.0"
+
+[[package]]
+name = "max_area_of_island"
 version = "0.1.0"
 
 [[package]]
@@ -24,6 +32,10 @@ version = "0.1.0"
 
 [[package]]
 name = "minimum_depth_of_binary_tree"
+version = "0.1.0"
+
+[[package]]
+name = "reachable_nodes_with_restrictions"
 version = "0.1.0"
 
 [[package]]
