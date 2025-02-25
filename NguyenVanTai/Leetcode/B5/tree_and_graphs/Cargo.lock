@@ -35,6 +35,10 @@ name = "minimum_depth_of_binary_tree"
 version = "0.1.0"
 
 [[package]]
+name = "nearest_exit_from_entrance_in_maze"
+version = "0.1.0"
+
+[[package]]
 name = "reachable_nodes_with_restrictions"
 version = "0.1.0"
 

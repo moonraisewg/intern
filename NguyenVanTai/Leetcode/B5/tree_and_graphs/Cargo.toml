@@ -7,6 +7,6 @@ edition = "2021"
 members = [ "binary_tree_zigzag_level_order_traversal", "deepest_leaves_sum", "diameter_of_binary_tree", "find_if_path_exists_in_graph", "insert_into_a_binary_search_tree", "max_area_of_island",
     "maximum",
     "minimum_depth_of_binary_tree"
-, "reachable_nodes_with_restrictions"]
+, "nearest_exit_from_entrance_in_maze", "reachable_nodes_with_restrictions"]
 
 [dependencies]
