@@ -15,7 +15,7 @@ use std::collections::{HashSet, VecDeque};
 
 // Example 1:
 
-// Input: startGene = "AACCGGTT", endGene = "AACCGGTA", bank = ["AACCGGTA"]
+// Input: startGene = "AACCGGTT", endGene = "AACCGGTA", bank = ["AACCGGTA"],
 // Output: 1
 // Example 2:
 
