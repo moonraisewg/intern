@@ -58,3 +58,84 @@
    - Số lần tung xúc xắc ít nhất để đến đích
    - Trả về -1 nếu không thể đến đích
 */
+use std::collections::{HashMap, VecDeque};
+
+pub fn snakes_and_ladders(board: Vec<Vec<i32>>) -> i32 {
+    let n = board.len();
+    let target = (n * n) as i32;
+    
+    // Hàm chuyển đổi từ số trên bảng sang tọa độ ma trận
+    let get_coordinates = |cell: i32| -> (usize, usize) {
+        let cell = cell - 1; // Chuyển từ 1-based sang 0-based
+        let row = n - 1 - (cell / n as i32) as usize;
+        let col = if ((n - 1 - row) % 2 == 0) {
+            (cell % n as i32) as usize
+        } else {
+            (n - 1 - (cell % n as i32) as usize)
+        };
+        (row, col)
+    };
+
+    // BFS để tìm đường đi ngắn nhất
+    let mut queue = VecDeque::new();
+    let mut visited = HashMap::new();
+    
+    // Bắt đầu từ ô 1
+    queue.push_back(1);
+    visited.insert(1, 0); // (ô, số bước)
+
+    while let Some(curr) = queue.pop_front() {
+        let steps = *visited.get(&curr).unwrap();
+        
+        // Đã đến đích
+        if curr == target {
+            return steps;
+        }
+
+        // Thử tất cả các bước có thể (1-6)
+        for next in curr + 1..=std::cmp::min(curr + 6, target) {
+            let (row, col) = get_coordinates(next);
+            
+            // Điểm đến sau khi xét rắn/thang
+            let destination = if board[row][col] != -1 {
+                board[row][col]
+            } else {
+                next
+            };
+
+            // Nếu chưa thăm điểm đến này
+            if !visited.contains_key(&destination) {
+                visited.insert(destination, steps + 1);
+                queue.push_back(destination);
+            }
+        }
+    }
+
+    -1 // Không tìm thấy đường đi
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_example_1() {
+        let board = vec![
+            vec![-1,-1,-1,-1,-1,-1],
+            vec![-1,-1,-1,-1,-1,-1],
+            vec![-1,-1,-1,-1,-1,-1],
+            vec![-1,35,-1,-1,13,-1],
+            vec![-1,-1,-1,-1,-1,-1],
+            vec![-1,15,-1,-1,-1,-1]
+        ];
+        assert_eq!(snakes_and_ladders(board), 4);
+    }
+
+    #[test]
+    fn test_example_2() {
+        let board = vec![
+            vec![-1,-1],
+            vec![-1,3]
+        ];
+        assert_eq!(snakes_and_ladders(board), 1);
+    }
+}
